@@ -1,0 +1,46 @@
+Title: Deep Residual Learning for Image Recognition
+Authors: He, Zhang, Ren, Sun (Microsoft Research, 2016)
+Published: CVPR 2016 (Best Paper Award)
+
+ABSTRACT
+Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously. We explicitly reformulate the layers as learning residual functions with reference to the layer inputs, instead of learning unreferenced functions. We provide comprehensive empirical evidence showing that these residual networks are easier to optimize, and can gain accuracy from considerably increased depth.
+
+THE DEGRADATION PROBLEM
+When deeper networks start converging, a degradation problem has been exposed: with the network depth increasing, accuracy gets saturated and then degrades rapidly. Such degradation is not caused by overfitting, and adding more layers to a suitably deep model leads to higher training error. This unexpected degradation suggests that solvers might have difficulties in approximating identity mappings by multiple nonlinear layers.
+
+RESIDUAL LEARNING
+Instead of expecting stacked layers to directly fit a desired underlying mapping H(x), we explicitly let these layers fit a residual mapping F(x) = H(x) − x. The original mapping is then recast as F(x) + x. We hypothesize that it is easier to optimize the residual mapping than to optimize the original, unreferenced mapping.
+
+The shortcut connections simply perform identity mapping, and their outputs are added to the outputs of the stacked layers:
+  y = F(x, {W_i}) + x
+
+This formulation introduces no extra parameters and negligible computational complexity. The residual learning can be applied to every few stacked layers.
+
+NETWORK ARCHITECTURES
+Plain networks: inspired by VGG philosophy (3×3 conv, same output feature map size, halve with stride 2)
+
+ResNets tested: 18, 34, 50, 101, 152 layers
+- ResNet-50 uses bottleneck design: 1×1 → 3×3 → 1×1 convolutions
+- ResNet-152 achieves 3.57% top-5 error on ImageNet (ensemble)
+
+Batch Normalization is applied after each convolution and before activation.
+
+RESULTS ON IMAGENET
+- ResNet-152: 3.57% top-5 error (ensemble), surpassing human performance (5.1%)
+- 8× deeper than VGG with lower complexity
+- Single model ResNet-152: 4.49% top-5 error
+- Won 1st place in ILSVRC 2015 classification, detection, localization
+
+GENERALIZATION
+Residual networks also showed strong results on:
+- CIFAR-10: 1000-layer network successfully trained
+- MS COCO object detection: significant improvement with ResNet features
+- ImageNet detection and localization tasks
+
+IMPACT
+ResNets became the backbone of choice for computer vision:
+- Used in object detection (Faster R-CNN, YOLO, SSD)
+- Semantic segmentation (DeepLab, FCN)
+- Medical image analysis
+- The skip connection concept influenced Transformers (residual attention)
+- One of the most cited papers in computer science (100,000+ citations)

@@ -1,0 +1,35 @@
+Title: Attention Is All You Need
+Authors: Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez, Kaiser, Polosukhin (Google Brain / Google Research, 2017)
+Published: NeurIPS 2017
+
+ABSTRACT
+The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.
+
+INTRODUCTION
+Recurrent neural networks (RNNs), long short-term memory (LSTM) networks, and gated recurrent neural networks have been firmly established as state-of-the-art approaches in sequence modeling and transduction problems such as language modeling and machine translation. Numerous efforts have since continued to push the boundaries of recurrent language models and encoder-decoder architectures. The Transformer allows for significantly more parallelization and achieved new state-of-the-art results in translation quality after being trained for as little as twelve hours on eight P100 GPUs.
+
+SCALED DOT-PRODUCT ATTENTION
+The input consists of queries and keys of dimension d_k, and values of dimension d_v. We compute the dot products of the query with all keys, divide each by sqrt(d_k), and apply a softmax function to obtain the weights on the values:
+  Attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) * V
+
+The two most commonly used attention functions are additive attention and dot-product (multiplicative) attention. While the two are similar in theoretical complexity, dot-product attention is much faster and more space-efficient in practice, since it can be implemented using highly optimized matrix multiplication code.
+
+MULTI-HEAD ATTENTION
+Instead of performing a single attention function with d_model-dimensional keys, values and queries, we found it beneficial to linearly project the queries, keys and values h times with different, learned linear projections to d_k, d_k and d_v dimensions, respectively. On each of these projected versions of queries, keys and values we then perform the attention function in parallel.
+  MultiHead(Q, K, V) = Concat(head_1, ..., head_h) * W^O
+  head_i = Attention(Q*W_i^Q, K*W_i^K, V*W_i^V)
+
+POSITIONAL ENCODING
+Since our model contains no recurrence and no convolution, in order for the model to make use of the order of the sequence, we must inject some information about the relative or absolute position of the tokens in the sequence. To this end, we add "positional encodings" to the input embeddings at the bottoms of the encoder and decoder stacks. The positional encodings have the same dimension d_model as the embeddings, so that the two can be summed. We use sine and cosine functions of different frequencies:
+  PE(pos, 2i)   = sin(pos / 10000^(2i/d_model))
+  PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
+
+RESULTS
+On the WMT 2014 English-to-German translation task, the big transformer model outperforms the best previously reported models including ensembles by more than 2.0 BLEU, establishing a new state-of-the-art BLEU score of 28.4. The big transformer model achieves 41.0 BLEU on the WMT 2014 English-to-French translation task, outperforming all of the previously published single models, at less than 1/4 the training cost of the previous state-of-the-art model.
+
+KEY CONTRIBUTIONS
+- Proposed the Transformer architecture based entirely on attention
+- Introduced multi-head self-attention for parallel sequence processing
+- Eliminated recurrence, enabling full parallelization during training
+- Achieved state-of-the-art translation with dramatically less compute
+- Foundation for BERT, GPT, T5, and virtually all modern LLMs

@@ -1,0 +1,58 @@
+Title: A Survey of Large Language Models
+Authors: Zhao, Zhou, Li, Tang, Wang, Hou, Min, Zhang, Zhang, Dong, Du, Yang, Chen, Chen, Jiang, Ren, Li, Tang, Liu, Liu, Nie, Wen (2023)
+Published: arXiv:2303.18223
+
+ABSTRACT
+Language is essentially a complex, intricate system of human expression governed by grammatical rules and evolving patterns. Owing to the stochastic nature of language, developing capable AI models for language is considered an extremely difficult task. As a major approach, language modeling has been widely studied for language understanding and generation in the past two decades, evolving from statistical language models to neural language models. Recently, pre-trained language models (PLMs) have been proposed by pre-training Transformer models over large-scale corpora. Since the researchers have found that model scaling can lead to an improved model capacity, they further study the scaling effect by increasing the parameter scale to an even larger size.
+
+WHAT ARE LARGE LANGUAGE MODELS?
+Large language models (LLMs) refer to Transformer-based language models containing hundreds of billions (or more) of parameters, which are trained on massive text data. LLMs demonstrate strong capacities in solving complex NLP tasks via text generation in an autoregressive manner. They differ from earlier pre-trained models (like BERT) in:
+- Scale: 7B to 540B+ parameters
+- Training data: trillions of tokens
+- Emergent abilities: abilities not present in smaller models
+- In-context learning: adapting to tasks via few examples in the prompt
+
+SCALING LAWS
+Kaplan et al. (2020) showed that LLM performance scales predictably with:
+  L(N) ≈ (N_c / N)^α_N   (compute-optimal scaling)
+Where N is parameter count. The Chinchilla paper (Hoffmann et al., 2022) revised this finding, showing that compute-optimal training requires roughly equal scaling of model size and training data:
+  Optimal tokens = 20 × parameters
+
+EMERGENT ABILITIES
+As LLMs scale beyond certain thresholds, they exhibit emergent abilities that appear suddenly:
+- In-context learning (GPT-3): learning from examples without gradient updates
+- Chain-of-thought reasoning: step-by-step problem solving
+- Instruction following: following complex multi-step instructions
+- Code generation: writing and debugging code
+- Arithmetic: solving multi-step math problems
+
+PROMINENT LLMs (as of 2023)
+- GPT-3 (175B, OpenAI): demonstrated few-shot learning
+- GPT-4 (undisclosed, OpenAI): multimodal, strong reasoning
+- LLaMA (7B-65B, Meta): open-source, enabling research community
+- Claude (Anthropic): Constitutional AI for safety alignment
+- PaLM (540B, Google): strong multilingual and reasoning capabilities
+- Gemini (Google DeepMind): multimodal, competitive with GPT-4
+
+ALIGNMENT TECHNIQUES
+RLHF (Reinforcement Learning from Human Feedback):
+1. Fine-tune LLM on demonstration data → supervised fine-tuned (SFT) model
+2. Train reward model on human preference pairs
+3. Optimize LLM against reward model using PPO
+RLAIF: Use AI feedback instead of (or in addition to) human feedback
+DPO: Direct Preference Optimization — simpler alternative to RLHF
+
+KEY CHALLENGES
+- Hallucination: generating plausible but factually incorrect information
+- Context length: limited ability to process very long documents
+- Reasoning: still struggles with multi-step logical reasoning
+- Bias: reflects biases in training data
+- Cost: inference is expensive at scale
+
+BENCHMARK PERFORMANCE
+State-of-the-art LLMs achieve near-human performance on:
+- MMLU (Massive Multitask Language Understanding)
+- GSM8K (Grade School Math)
+- HumanEval (code generation)
+- HellaSwag (commonsense reasoning)
+- TruthfulQA (factuality)

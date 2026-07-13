@@ -1,0 +1,128 @@
+"""
+benchmark/dataset.py
+--------------------
+Benchmark dataset containing 105 representative queries (15 per expert domain)
+used to evaluate and benchmark the model providers.
+"""
+
+BENCHMARK_DATASET = {
+    "coding": [
+        "Write a python script to implement a priority queue.",
+        "How do I merge two sorted lists in Rust?",
+        "Implement a binary search algorithm in Java.",
+        "Write a regular expression to validate phone numbers.",
+        "Fix this Python syntax error: print 'hello' without parentheses.",
+        "How to perform deep copy of a list in JavaScript?",
+        "Create a REST API using Flask with basic CRUD operations.",
+        "Write a Bash script to find and delete empty directories.",
+        "Explain SOLID principles with code examples in C++.",
+        "How do I parse HTML using BeautifulSoup in Python?",
+        "Write a SQL query to select all users who registered in the last 30 days.",
+        "Implement a bubble sort algorithm in Go.",
+        "How to use async/await in Python with asyncio?",
+        "Write a unit test for a reverse string function in PyTest.",
+        "How do I handle file I/O errors in Ruby?"
+    ],
+    "math": [
+        "Solve the derivative of f(x) = x^3 - 3x^2 + 2x.",
+        "What is the integral of cos(x) from 0 to pi/2?",
+        "Solve this quadratic equation: x^2 - 5x + 6 = 0.",
+        "Find the eigenvalues of a 2x2 identity matrix.",
+        "What is the probability of flipping three heads in a row with a fair coin?",
+        "Explain the central limit theorem in simple terms.",
+        "What is the sum of an infinite geometric series with ratio 0.5?",
+        "Prove that the square root of 2 is irrational.",
+        "Find the limit of (sin(x))/x as x approaches 0.",
+        "What is Euler's totient function and how is it computed?",
+        "Solve this system of equations: 2x + y = 5, x - y = 1.",
+        "What is the cross product of vectors [1, 2, 3] and [4, 5, 6]?",
+        "Explain Bayes' Theorem with a concrete visual example.",
+        "Find the binomial coefficient of 8 choose 2.",
+        "Solve the differential equation dy/dx = 3y."
+    ],
+    "ml": [
+        "What is the difference between classification and regression?",
+        "How to handle missing numerical features in scikit-learn?",
+        "Explain the concept of k-fold cross-validation.",
+        "What is the difference between Lasso and Ridge regularization?",
+        "How does a Decision Tree split nodes during training?",
+        "Explain the bias-variance trade-off in machine learning.",
+        "How does the K-Means clustering algorithm work?",
+        "What is the F1-score and why is it preferred over accuracy?",
+        "How to perform train-test split in scikit-learn?",
+        "Explain feature scaling: Standardization vs Min-Max Normalization.",
+        "How to handle highly imbalanced datasets using SMOTE?",
+        "What is a Random Forest and how does bootstrapping work?",
+        "Explain the ROC AUC score in model evaluation.",
+        "How does Principal Component Analysis (PCA) perform dimensionality reduction?",
+        "Explain tabular data classification using gradient boosting."
+    ],
+    "deep_learning": [
+        "What is a Convolutional Neural Network (CNN) and how do filters work?",
+        "Explain the self-attention mechanism in Transformer networks.",
+        "What is the difference between RNNs and LSTMs?",
+        "Explain the backpropagation algorithm in neural networks.",
+        "How does the ReLU activation function prevent vanishing gradients?",
+        "What is batch normalization and why is it applied during training?",
+        "How does Dropout regularize deep neural networks?",
+        "Explain Generative Adversarial Networks (GANs) and the minimax game.",
+        "What is transfer learning and how to fine-tune a pre-trained ResNet?",
+        "How does gradient clipping solve exploding gradients?",
+        "What are embeddings and how are they used in neural networks?",
+        "Explain image segmentation using the U-Net architecture.",
+        "How to implement custom loss functions in PyTorch?",
+        "What is contrastive learning in self-supervised model architectures?",
+        "Explain the learning rate scheduler in optimizer pipelines."
+    ],
+    "genai": [
+        "What is prompt engineering and how does few-shot prompting work?",
+        "Explain Retrieval-Augmented Generation (RAG) architecture.",
+        "How to build a simple AI agent with custom tool call bindings?",
+        "What causes hallucinations in Large Language Models?",
+        "Explain reinforcement learning from human feedback (RLHF).",
+        "How does LLM quantization work using GGUF format?",
+        "What is the difference between prompt tuning and fine-tuning?",
+        "Explain the context window limitation in transformer LLMs.",
+        "How to design a system prompt to enforce JSON output formats?",
+        "What are vector databases and how do they perform semantic search?",
+        "How to run large language models locally using Ollama?",
+        "Explain parameter-efficient fine-tuning (PEFT) and LoRA.",
+        "How does direct preference optimization (DPO) work?",
+        "What is chain-of-thought prompting and why does it improve reasoning?",
+        "Explain multi-agent orchestration frameworks like Autogen."
+    ],
+    "research": [
+        "Find the contributions of the Attention Is All You Need paper.",
+        "Summarize the benchmarks for LLM reasoning capabilities.",
+        "What is the methodology behind Retrieval-Augmented Generation?",
+        "How to perform a literature review on graph neural networks?",
+        "Search academic sources for reinforcement learning in robotics.",
+        "What are the main findings in the ResNet paper?",
+        "How to write a structured academic abstract for an NLP conference?",
+        "What datasets are commonly used to evaluate LLM math skills?",
+        "What is the baseline comparison model in the BERT paper?",
+        "Explain double-blind peer review in machine learning conferences.",
+        "How to outline an ablation study in a computer vision paper?",
+        "Search academic repositories for self-supervised contrastive learning.",
+        "What limitations are documented in the GPT-3 research paper?",
+        "Explain the experimental setup for evaluating Vision Transformers.",
+        "Find citation metrics and baseline benchmarks for YOLO object detectors."
+    ],
+    "system_design": [
+        "Design a scalable URL shortener system like TinyURL.",
+        "Explain microservices vs monolithic system architecture.",
+        "How to design a load balancer that supports sticky sessions?",
+        "What is database sharding and when should we implement it?",
+        "Explain the CAP Theorem and its trade-offs in distributed DBs.",
+        "How does content delivery network (CDN) caching improve latency?",
+        "Design a rate limiter system to prevent API scraping.",
+        "Explain event-driven architecture using Apache Kafka.",
+        "What is the difference between SQL and NoSQL databases?",
+        "How to design a distributed caching system like Redis?",
+        "Explain horizontal vs vertical database scaling.",
+        "Design a chat application architecture like WhatsApp.",
+        "What is eventual consistency and how does it differ from strong consistency?",
+        "Design a payment gateway processing flow.",
+        "Explain the circuit breaker design pattern in microservices."
+    ]
+}

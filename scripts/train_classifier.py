@@ -1,0 +1,348 @@
+"""
+scripts/train_classifier.py
+---------------------------
+Training script to build, evaluate, and save the Machine Learning Intent Classifier.
+Compares Logistic Regression, Random Forest, and SVM, saving the best performing model.
+"""
+
+import os
+import sys
+import logging
+from pathlib import Path
+
+# Ensure project root is in python path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+import joblib
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+
+from config.settings import INTENT_MODEL_PATH, VECTORIZER_PATH, DATA_DIR
+
+# Set up simple script logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(message)s")
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# 1. Dataset Construction (30 examples per expert for all 7 experts)
+# ---------------------------------------------------------------------------
+DATASET = {
+    # 💻 Coding Expert
+    "coding": [
+        "write a quicksort in python",
+        "how do i implement a binary search tree in java",
+        "implement a linked list in rust",
+        "why am i getting an index out of bounds error",
+        "fix this null pointer exception in my code",
+        "write a regex to parse email addresses",
+        "how to sort a dictionary by values in python",
+        "create a rest api using fastapi",
+        "how do I use git rebase",
+        "explain solid design principles with python examples",
+        "write a unit test in pytest for my function",
+        "refactor this nested loop to improve runtime",
+        "how to perform string interpolation in javascript",
+        "how do I reverse a string in go",
+        "find the duplicate elements in an array",
+        "how does recursion work in programming",
+        "create a database migration using alembic",
+        "write a sql query to find the second highest salary",
+        "how to handle exceptions in c++",
+        "what is the complexity of merge sort",
+        "implement a queue using two stacks",
+        "write a helper function to format dates",
+        "how to resolve a merge conflict in git",
+        "explain dry principle in programming",
+        "write a script to parse json files",
+        "how to create a subclass in python",
+        "write a binary search function",
+        "how do i read a text file in java",
+        "implement a hash map from scratch",
+        "how to make an asynchronous request in node.js"
+    ],
+    # 📐 Math Expert
+    "math": [
+        "solve this derivative: x^2 + 5x + 6",
+        "what is the integral of sin(x) from 0 to pi",
+        "calculate the eigenvalues of this matrix",
+        "find the roots of the quadratic equation",
+        "what is the limit of (1+1/n)^n as n goes to infinity",
+        "explain the central limit theorem",
+        "calculate the probability of drawing two aces from a deck",
+        "prove the pythagorean theorem",
+        "what is the value of pi to 10 decimal places",
+        "solve this system of linear equations",
+        "what is the cross product of two vectors",
+        "explain bayes theorem with a simple example",
+        "what is a prime number",
+        "calculate the standard deviation of this dataset",
+        "solve for x in 3x + 7 = 19",
+        "what is the difference between a permutation and a combination",
+        "explain Euler's formula e^(i*pi) + 1 = 0",
+        "how to perform matrix multiplication",
+        "what is the derivative of ln(x)",
+        "calculate the variance of the sample",
+        "what is the Fibonacci sequence formula",
+        "find the area of a circle with radius 5",
+        "what is number theory",
+        "explain the Riemann hypothesis",
+        "what is combinatorics in math",
+        "find the binomial coefficient of 10 choose 3",
+        "what is linear algebra used for",
+        "solve the differential equation dy/dx = y",
+        "what is a Taylor series expansion",
+        "calculate the dot product of [1, 2] and [3, 4]"
+    ],
+    # ⚙️ Machine Learning Expert
+    "ml": [
+        "what is the difference between supervised and unsupervised learning",
+        "explain feature engineering in ML",
+        "how to handle missing data in scikit-learn",
+        "what is cross-validation and why do we use it",
+        "explain over-fitting and under-fitting",
+        "how does a random forest classifier work",
+        "what is the support vector machine algorithm",
+        "explain k-nearest neighbors classification",
+        "what is gradient descent optimization",
+        "calculate precision and recall metrics",
+        "what is the F1 score in machine learning",
+        "how to use scikit-learn train_test_split",
+        "explain decision trees classification",
+        "what is anomaly detection",
+        "how do recommendation systems work",
+        "explain principal component analysis PCA",
+        "how to perform k-means clustering",
+        "what is the ROC AUC curve",
+        "how to tune hyperparameters using grid search",
+        "what is regularization in lasso and ridge regression",
+        "explain naive bayes classification",
+        "how does XGBoost work",
+        "what is the cost function of linear regression",
+        "how to deploy a scikit-learn model",
+        "explain the bias-variance trade-off",
+        "what is feature scaling and normalization",
+        "how to handle imbalanced datasets in machine learning",
+        "what is tabular data classification",
+        "how does gradient boosting work",
+        "explain association rule mining"
+    ],
+    # 🧬 Deep Learning Expert
+    "deep_learning": [
+        "what is a convolutional neural network CNN",
+        "explain the architecture of a transformer model",
+        "how does self-attention work in deep learning",
+        "what is the difference between feedforward networks and RNNs",
+        "explain LSTM and GRU architectures",
+        "what is backpropagation in neural networks",
+        "how does the ReLU activation function work",
+        "what is softmax activation",
+        "explain batch normalization and dropout regularization",
+        "how to choose the batch size and number of epochs",
+        "what is the difference between PyTorch and TensorFlow",
+        "explain generative adversarial networks GANs",
+        "how do diffusion models generate images",
+        "what is transfer learning in deep learning",
+        "how to fine-tune a pre-trained ResNet model",
+        "what is a loss function in neural networks",
+        "explain learning rate schedules and Adam optimizer",
+        "how does image recognition work using deep learning",
+        "what are embedding layers in NLP",
+        "explain vanishing and exploding gradients",
+        "how to implement a simple neural network in PyTorch",
+        "what is a residual block in ResNet",
+        "how to use PyTorch DataLoader for training",
+        "explain spatial pyramid pooling in CNNs",
+        "what is contrastive learning in deep neural networks",
+        "explain the autoencoder architecture",
+        "how does image segmentation work with U-Net",
+        "what is mask R-CNN",
+        "explain sequence-to-sequence model architecture",
+        "how to handle out-of-memory errors in PyTorch VRAM"
+    ],
+    # ✨ GenAI Expert
+    "genai": [
+        "what is prompt engineering",
+        "explain retrieval augmented generation RAG",
+        "how to build a custom AI chatbot using LangChain",
+        "what are AI agents and how do they use tools",
+        "explain chain of thought prompting CoT",
+        "what is few-shot prompting and zero-shot prompting",
+        "explain reinforcement learning from human feedback RLHF",
+        "what causes hallucinations in large language models",
+        "how to perform LLM quantization using GGUF",
+        "what is the difference between GPT-4 and Claude",
+        "how to use LlamaIndex for document retrieval",
+        "what is instruction tuning for LLMs",
+        "how to design a system prompt for a chatbot",
+        "what are vector databases like Chroma or Pinecone",
+        "how to run llama models locally",
+        "explain the concept of temperature in text generation",
+        "what is semantic search",
+        "how to integrate external tools with OpenAI API",
+        "explain multi-agent collaboration frameworks",
+        "what is prompt injection and how to prevent it",
+        "how do retrieval models select contexts in RAG",
+        "explain the role of system instructions in LLMs",
+        "how to evaluate RAG system quality using Ragas",
+        "what is parameter-efficient fine-tuning PEFT",
+        "how does LoRA work in LLM fine-tuning",
+        "explain context window limitations in LLMs",
+        "how to build an agent that searches the web",
+        "what is the difference between fine-tuning and RAG",
+        "how does direct preference optimization DPO work",
+        "what is a router agent in multi-agent systems"
+    ],
+    # 🔬 Research Expert
+    "research": [
+        "find the latest academic papers on transformers",
+        "summarize the SOTA benchmarks for image classification",
+        "what is the methodology used in the Attention Is All You Need paper",
+        "how to conduct a literature review on RAG systems",
+        "search Arxiv for recent papers on LLM agent safety",
+        "what are the findings of the ResNet paper",
+        "how to write an academic abstract for a machine learning paper",
+        "what datasets are used to benchmark LLM reasoning",
+        "what is the baseline model compared in the study",
+        "how to write an ablation study section",
+        "search for peer-reviewed articles on neural architecture search",
+        "what is the state of the art on GLUE benchmark",
+        "explain the experimental setup in the ViT paper",
+        "how to parse bibliography and citations in research papers",
+        "what are the limitations mentioned in the BERT paper",
+        "find papers on reinforcement learning on Arxiv",
+        "what is the academic consensus on model size vs performance",
+        "explain peer review process in machine learning conferences",
+        "what are the contributions of the AlexNet paper",
+        "search for recent surveys on graph neural networks",
+        "how is the data split done in the ImageNet benchmark",
+        "what is the standard citation style for NeurIPS papers",
+        "find research papers on diffusion model optimization",
+        "how do researchers define SOTA in NLP benchmarks",
+        "what is the research methodology of double-blind studies",
+        "explain the baseline performance comparison in the paper",
+        "search academic databases for self-supervised learning",
+        "what is the main hypothesis of the study",
+        "find studies evaluating LLM translation capabilities",
+        "how to retrieve citation counts from Google Scholar"
+    ],
+    # 🏗️ System Design Expert
+    "system_design": [
+        "how to design a scalable URL shortener system",
+        "explain the trade-offs of microservices vs monolith architecture",
+        "how to design a load balancer for a high-traffic app",
+        "explain CDNs and how they cache content",
+        "how to design an API gateway for services",
+        "what is database sharding and partitioning",
+        "explain replication in relational databases",
+        "how do message queues like Kafka work",
+        "explain CAP theorem in distributed systems",
+        "what is the difference between SQL and NoSQL databases",
+        "how to design a rate limiter",
+        "explain event-driven architecture and pub/sub pattern",
+        "how does gRPC compare to REST APIs",
+        "how to design a distributed cache system",
+        "explain horizontal vs vertical scaling",
+        "how to design a chat application like WhatsApp",
+        "explain eventual consistency vs strong consistency",
+        "how to design a payment processing system",
+        "explain the role of zookeeper in distributed consensus",
+        "how to design a video streaming platform like YouTube",
+        "what is the difference between active-active and active-passive replication",
+        "how to design a notification service",
+        "explain database transaction isolation levels",
+        "how to design a search engine like Elasticsearch",
+        "explain the circuit breaker pattern in microservices",
+        "how does cloud deployment on AWS work",
+        "how to design a secure authentication system",
+        "explain data warehouse vs data lake systems",
+        "how to design a telemetry and logging system",
+        "explain back-of-the-envelope estimation in system design"
+    ]
+}
+
+# ---------------------------------------------------------------------------
+# 2. Main Training Execution
+# ---------------------------------------------------------------------------
+def main():
+    logger.info("Initializing ML Classifier training...")
+
+    # Flatten dataset
+    queries = []
+    labels = []
+    for expert, examples in DATASET.items():
+        for example in examples:
+            queries.append(example)
+            labels.append(expert)
+
+    X = np.array(queries)
+    y = np.array(labels)
+
+    logger.info("Loaded %d training examples across %d categories.", len(X), len(np.unique(y)))
+
+    # Set up TF-IDF vectorizer configuration
+    vectorizer = TfidfVectorizer(ngram_range=(1, 2), stop_words="english", sublinear_tf=True)
+
+    # Define classifiers to evaluate
+    models = {
+        "Logistic Regression": LogisticRegression(C=1.0, random_state=42, max_iter=1000),
+        "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
+        "SVM (Linear)": SVC(C=1.0, kernel="linear", probability=True, random_state=42)
+    }
+
+    # Compare models using Stratified K-Fold Cross-Validation
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    best_name = None
+    best_score = -1.0
+    best_clf = None
+
+    logger.info("Evaluating classifiers using 5-Fold Stratified Cross-Validation...")
+    for name, clf in models.items():
+        pipeline = Pipeline([
+            ("vectorizer", vectorizer),
+            ("classifier", clf)
+        ])
+        
+        # Calculate CV accuracy
+        scores = cross_val_score(pipeline, X, y, cv=cv, scoring="accuracy")
+        mean_score = np.mean(scores)
+        std_score = np.std(scores)
+        logger.info("- %s: Accuracy = %.2f%% (+/- %.2f%%)", name, mean_score * 100, std_score * 100)
+
+        if mean_score > best_score:
+            best_score = mean_score
+            best_name = name
+            best_clf = clf
+
+    logger.info("--> Selected Best Model: %s with CV Accuracy of %.2f%%", best_name, best_score * 100)
+
+    # ---------------------------------------------------------------------------
+    # 3. Fit Best Pipeline & Save to Disk
+    # ---------------------------------------------------------------------------
+    logger.info("Fitting best classifier on the full training dataset...")
+    
+    # Fit vectorizer
+    vectorizer.fit(X)
+    X_vectorized = vectorizer.transform(X)
+    
+    # Train the best classifier
+    best_clf.fit(X_vectorized, y)
+
+    # Ensure output directory exists
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Save components
+    joblib.dump(best_clf, INTENT_MODEL_PATH)
+    joblib.dump(vectorizer, VECTORIZER_PATH)
+    
+    logger.info("Successfully serialized trained model to: %s", INTENT_MODEL_PATH)
+    logger.info("Successfully serialized vectorizer to: %s", VECTORIZER_PATH)
+    logger.info("Training complete! 🎉")
+
+if __name__ == "__main__":
+    main()

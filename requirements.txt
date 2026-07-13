@@ -1,0 +1,34 @@
+# IntelliMoE — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Core AI / Model ─────────────────────────────────────────────────────────
+torch>=2.2.0
+transformers>=4.40.0
+accelerate>=0.29.0
+
+# ── RAG / Vector Store ──────────────────────────────────────────────────────
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+
+# ── UI ──────────────────────────────────────────────────────────────────────
+streamlit>=1.33.0
+
+# ── Testing ─────────────────────────────────────────────────────────────────
+pytest>=8.0.0
+
+# ── Diagnostics ─────────────────────────────────────────────────────────────
+psutil>=5.9.0
+
+# ── LangChain & RAG PDF loader ──────────────────────────────────────────────
+langchain>=0.1.0
+langchain-community>=0.0.20
+pypdf>=4.0.0
+
+# ── API Clients & ML Classifiers ───────────────────────────────────────────
+groq>=0.5.0
+google-generativeai>=0.5.0
+google-genai>=0.1.0
+scikit-learn>=1.4.0
+joblib>=1.3.0
+
+
