@@ -22,13 +22,14 @@ Repository: [https://github.com/suresh4330/IntelliMoE.git](https://github.com/su
 8. [Project Structure](#project-structure)
 9. [Core References](#core-references)
 10. [Run Locally](#run-locally)
-11. [Troubleshooting](#troubleshooting)
-12. [FAQ](#faq)
-13. [Contributing](#contributing)
-14. [Changelog](#changelog)
-15. [Roadmap](#roadmap)
-16. [Author](#author)
-17. [License](#license)
+11. [Run with Docker & Compose](#run-with-docker--compose)
+12. [Troubleshooting](#troubleshooting)
+13. [FAQ](#faq)
+14. [Contributing](#contributing)
+15. [Changelog](#changelog)
+16. [Roadmap](#roadmap)
+17. [Author](#author)
+18. [License](#license)
 
 ---
 
@@ -47,6 +48,9 @@ IntelliMoE helps developers, researchers, and students solve complex technical q
 * **🔊 Text-to-Speech Voice Mode**: Auto-reads responses aloud when a user dictates a query. Includes interactive inline speaker controls `🔊/🔊x` next to each message to play/stop playback anytime.
 * **🔍 Explainable AI (XAI)**: Diagnostic developer panels displaying active routing logic, plan traces, review criteria, performance latency benchmarking, and raw JSON schemas.
 * **🔬 Research RAG Pipeline**: Integrates ChromaDB and `SentenceTransformers` to index, retrieve, and inject context from academic research papers.
+* **💾 Persistent Chat History & Profiles**: Saved multi-thread chat sessions matching the user's signature/profile stored directly in local JSON files (`data/chat_history_{user_email}.json`).
+* **📊 Evaluation & Benchmarking Suite**: Automatic metric collection, historical run logs (`data/evaluation_history.csv` / `data/benchmark_history.csv`), accuracy/latency diagnostics, and automated pytest coverage checks.
+* **🐳 Docker & Compose Support**: Production-ready `Dockerfile` and `docker-compose.yml` for simplified, containerized execution with hot-reloading for development.
 
 ---
 
@@ -54,13 +58,13 @@ IntelliMoE helps developers, researchers, and students solve complex technical q
 * **Built and deployed a production-grade Mixture of Experts (MoE) AI assistant** powered by Gemini and Groq APIs.
 * **Designed a semantic routing layer** utilizing a hybrid classifier (TF-IDF + LLM fallback) to dynamically direct queries to 7 domain-specific AI experts.
 * **Developed an Answer Quality Engine** implementing planning, draft generation, review audit, and refinement stages, improving response quality by systematically correcting weak formatting or incorrect answers.
-* **Implemented a custom dark-mode web dashboard** using Streamlit, featuring real-time diagnostic overlays and Explainable AI (XAI) traces.
-* **Built a ChatGPT-style voice-typing dictation tool** utilizing the browser's Web Speech API and prototype-based React value binding bypass for auto-submission.
-* **Integrated local Text-to-Speech (TTS) audio synthesis** enabling hands-free voice response playbacks with interactive mute controls.
-* **Configured local vector store (ChromaDB + SentenceTransformers)** to chunk and index semantic research papers for RAG query context injection.
+* **Implemented user profile management and chat persistence** allowing seamless session reloading using local JSON serialization based on user email profiles.
+* **Configured Docker Desktop containerization and Docker Compose orchestration** mapping local directories to enable rapid containerized builds and live hot-reloads.
+* **Integrated local vector store (ChromaDB + SentenceTransformers)** to chunk and index semantic research papers for RAG query context injection.
+* **Built and optimized custom Speech-to-Text & Text-to-Speech layers** using native browser APIs and React state bypass triggers for auto-submission.
 
 ### Resume-ready one-liner:
-> Developed and deployed a Mixture of Experts (MoE) AI assistant utilizing a hybrid semantic router, an iterative Answer Quality Engine, and custom Web Speech dictation/playback to deliver highly-refined, context-aware expert answers.
+> Developed and deployed a Mixture of Experts (MoE) AI assistant utilizing a hybrid semantic router, an iterative Answer Quality Engine, Docker/Compose runtime isolation, and custom Web Speech dictation/playback to deliver highly-refined, context-aware expert answers.
 
 ---
 
@@ -92,29 +96,78 @@ IntelliMoE helps developers, researchers, and students solve complex technical q
 * Groq SDK & Google GenAI API Client
 * Streamlit Session State Management
 
-### Machine Learning
+### Machine Learning & Benchmarking
 * scikit-learn (TF-IDF Intent Classifier)
 * joblib
+* pytest
 
-### RAG Database
+### RAG Database & Containerization
 * ChromaDB (Vector Store)
 * SentenceTransformers (`all-MiniLM-L6-v2` embeddings)
+* Docker & Docker Compose
 
 ---
 
 ## Architecture
+
+```mermaid
+graph TD
+    A[User Query / Voice Dictation] --> B[Conversation AI Layer]
+    B --> C[Intent Classifier TF-IDF / LLM fallback]
+    C --> D[Hybrid Router Engine]
+    D --> E{Router Mode}
+    E -->|Single Expert| F[Planner Agent]
+    E -->|Multi-Expert| G[Collaboration Layer]
+    F --> H[Answer Quality Engine]
+    G --> H
+    H --> I[Gemini / Groq Inference APIs]
+    I --> J[Final Answer & Telemetry Overlay]
+```
+
+### System Dataflow
+```
+                User
+                  │
+                  ▼
+       Conversation AI Layer
+                  │
+                  ▼
+         Intent Classifier
+                  │
+                  ▼
+           Hybrid Router
+                  │
+        ┌─────────┴──────────┐
+        ▼                    ▼
+   Single Expert        Multi Expert
+        │                    │
+        ▼                    ▼
+   Planner Agent       Collaboration
+        │                    │
+        └─────────┬──────────┘
+                  ▼
+        Answer Quality Engine
+                  │
+                  ▼
+             Gemini/Groq
+                  │
+                  ▼
+         Final Answer & UI
+```
+
 1. **User Query Input**: Sent via typing or Speech-to-Text (`🎙️`).
 2. **Intent Classification**: Custom TF-IDF classifies query intent.
 3. **MoE Routing**: Orchestrator routes query to the target expert.
 4. **Answer Quality Engine**: Run Planning -> Generation -> Review -> Improvement pipeline.
 5. **UI Rendering**: Output displayed with inline controls; TTS Speaks response if query came from voice.
 6. **XAI Logging**: Plan/review telemetry logs into diagnostics overlay.
+7. **Session Autosave**: Conversations are written to local JSON storage.
 
 ---
 
 ## How It Works
 * **Voice typing pipeline**: Microphone click intercepts click coordinates -> Initializes Web Speech API on parent page context -> Bypasses React state value binder using raw HTML prototype value setter -> Auto-clicks submit.
-* **Refinement pipeline**: Expert prompt is selected -> LLM generates an markdown structural plan -> Draft generated -> Reviewer checks completeness/formatting -> Improver patches weaknesses -> Output returned.
+* **Refinement pipeline**: Expert prompt is selected -> LLM generates a markdown structural plan -> Draft generated -> Reviewer checks completeness/formatting -> Improver patches weaknesses -> Output returned.
 
 ---
 
@@ -170,9 +223,32 @@ pip install -r requirements.txt
 
 ### 4. Launch App
 ```bash
-streamlit run ui/app.py
+streamlit run app.py
 ```
-Open [http://localhost:8502](http://localhost:8502) in your browser.
+Open [http://localhost:8501](http://localhost:8501) in your browser.
+
+---
+
+## Run with Docker & Compose
+
+If you have Docker Desktop installed, you can build and run IntelliMoE inside a isolated container environment.
+
+### 1. Configure environment
+Make sure the `.env` file is created in your project root with your credentials.
+
+### 2. Build and Start Container
+```bash
+# Build and run the app in detached background mode
+docker compose up --build -d
+```
+
+### 3. Access App
+Once the build completes successfully, go to **[http://localhost:8501](http://localhost:8501)**.
+
+### 4. Stopping
+```bash
+docker compose down
+```
 
 ---
 
@@ -183,6 +259,9 @@ If the app locks up on initialization, verify that no other instance is writing 
 
 ### Microphone not recording:
 Speech recognition requires secure context (`https://` or `localhost`). Verify browser permissions permit audio input.
+
+### Docker Registry / DNS Connectivity:
+If Docker Desktop fails to download base images, ensure your DNS is configured correctly (e.g., adding `8.8.8.8` to your Docker daemon configurations).
 
 ---
 
@@ -205,13 +284,16 @@ Contributions are welcome. Please open an issue or pull request to discuss impro
 * **v1.0.0**: Initial release featuring Hybrid Router & 7 Specialized Experts.
 * **v1.1.0**: Integrated ChromaDB RAG Research pipeline.
 * **v1.2.0**: Added Answer Quality Engine, Voice Dictation typing, and Text-to-Speech playback.
+* **v1.3.0**: User profile management and persistent multi-thread JSON chat history.
+* **v1.4.0**: Docker containerization & Docker Compose setup with volume mounting for hot-reloads.
+* **v1.5.0**: Built automated multi-expert benchmarking, diagnostic profiling, and evaluation logging suite.
 
 ---
 
 ## Roadmap
 * Multi-modal vision input support.
-* Fine-tuning of local classifier models.
-* User authentication and chat history database persistence.
+* Kubernetes orchestration and manifest setups.
+* Local inference fallback via Ollama / Llama.cpp integrations.
 
 ---
 

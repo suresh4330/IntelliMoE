@@ -385,7 +385,11 @@ class ResearchVectorStore:
 
         # Auto-seed from data/papers/ if the collection is empty.
         if self._auto_seed and self._collection.count() == 0:
-            self._seed_from_papers_dir()
+            self._auto_seed = False
+            try:
+                self._seed_from_papers_dir()
+            finally:
+                self._auto_seed = True
 
     def _seed_from_papers_dir(self) -> None:
         """Index all .txt files in PAPERS_DIR into the collection."""

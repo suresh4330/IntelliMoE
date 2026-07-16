@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 HAS_NEW_SDK = False
 try:
     from google import genai as new_genai
-    new_client = new_genai.Client(api_key=GEMINI_API_KEY, http_options={"api_version": "v1"})
+    new_client = new_genai.Client(api_key=GEMINI_API_KEY)
     HAS_NEW_SDK = True
     logger.info("Successfully loaded new google-genai Client wrapper.")
 except Exception as load_exc:
@@ -36,30 +36,31 @@ def generate_response(
 ) -> str:
     """
     Generate text using a Gemini model, automatically routing through the best available SDK.
+    Falls back to Groq API (llama-3.1-8b-instant) on quota/api errors.
     """
-    logger.info("Sending request to Gemini API (model: %s, new_sdk: %s)...", model, HAS_NEW_SDK)
-
-    if HAS_NEW_SDK:
-        try:
-            # Map parameters to the new SDK structure
-            config = {"temperature": temperature}
-            if system_prompt:
-                config["system_instruction"] = system_prompt
-
-            response = new_client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config
-            )
-            
-            response_text = response.text
-            if response_text is not None:
-                return response_text
-        except Exception as new_exc:
-            logger.warning("Generation failed using new google-genai SDK: %s. Trying legacy fallback...", new_exc)
-
-    # Legacy SDK Fallback
     try:
+        logger.info("Sending request to Gemini API (model: %s, new_sdk: %s)...", model, HAS_NEW_SDK)
+
+        if HAS_NEW_SDK:
+            try:
+                # Map parameters to the new SDK structure
+                config = {"temperature": temperature}
+                if system_prompt:
+                    config["system_instruction"] = system_prompt
+
+                response = new_client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config
+                )
+                
+                response_text = response.text
+                if response_text is not None:
+                    return response_text
+            except Exception as new_exc:
+                logger.warning("Generation failed using new google-genai SDK: %s. Trying legacy fallback...", new_exc)
+
+        # Legacy SDK Fallback
         import google.generativeai as old_genai  # noqa: PLC0415
         config = old_genai.types.GenerationConfig(temperature=temperature)
         
@@ -108,5 +109,18 @@ def generate_response(
         return response_text
 
     except Exception as e:
-        logger.exception("All attempts to call Gemini API failed: %s", e)
-        raise RuntimeError(f"Gemini API error: {e}") from e
+        logger.warning("Gemini API call failed (likely quota/429 limit): %s. Falling back to Groq API...", e)
+        try:
+            from services.groq_client import generate_response as groq_gen  # noqa: PLC0415
+            response = groq_gen(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                model="llama-3.1-8b-instant",
+                temperature=temperature,
+            )
+            logger.info("Successfully recovered using Groq API fallback.")
+            return response
+        except Exception as groq_exc:
+            logger.error("Both Gemini and Groq API calls failed! Groq error: %s", groq_exc)
+            # Raise original Gemini error if Groq fallback also failed
+            raise RuntimeError(f"Gemini API error (fallback Groq also failed): {e}") from e

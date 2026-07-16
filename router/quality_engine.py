@@ -156,6 +156,27 @@ class AnswerQualityEngine:
         Runs the Answer Quality Engine pipeline.
         Returns a dictionary containing the final response, plan, and review.
         """
+        # Check if AQE is disabled (Fast Mode)
+        enable_aqe = True
+        try:
+            import streamlit as st
+            if "enable_aqe" in st.session_state:
+                enable_aqe = st.session_state.enable_aqe
+        except Exception:
+            pass
+
+        if not enable_aqe:
+            logger.info("AnswerQualityEngine [%s]: AQE is disabled (Fast Mode), calling expert directly.", expert_name)
+            if expert_name == "vision" and hasattr(expert, "answer"):
+                ans = expert.answer(query, memory=memory, image_path=image_path)
+            else:
+                ans = expert.answer(query, memory=memory)
+            return {
+                "answer": ans,
+                "plan": "Answer Quality Engine bypassed (Fast Mode enabled).",
+                "review": "Answer Quality Engine bypassed (Fast Mode enabled)."
+            }
+
         # 1. Build Prompt
         system_prompt = self.prompt_builder.get_system_prompt(expert_name)
 

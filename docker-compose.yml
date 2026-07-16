@@ -1,0 +1,52 @@
+﻿# =================================================================
+# IntelliMoE -- Docker Compose
+# =================================================================
+# Usage:
+#   Build and start:  docker compose up --build
+#   Start (cached):   docker compose up
+#   Stop & remove:    docker compose down
+#   View logs:        docker compose logs -f
+# =================================================================
+
+services:
+  intellimoe:
+    # -- Build ----------------------------------------------------
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # -- Image name -----------------------------------------------
+    image: intellimoe:latest
+
+    # -- Container name -------------------------------------------
+    container_name: intellimoe_app
+
+    # -- Port mapping ---------------------------------------------
+    ports:
+      - "8501:8501"
+
+    # -- Environment variables ------------------------------------
+    # Loaded from .env at runtime (GROQ_API_KEY, GEMINI_API_KEY)
+    env_file:
+      - .env
+
+    # -- Volume mounts (development hot-reload) -------------------
+    # Mounts the project root so code changes reflect immediately.
+    # Remove this block for a pure production deployment.
+    volumes:
+      - .:/app
+
+    # -- Restart policy -------------------------------------------
+    restart: unless-stopped
+
+    # -- Health check ---------------------------------------------
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # -- Stdin / TTY (needed by Streamlit) ------------------------
+    stdin_open: true
+    tty: true

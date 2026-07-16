@@ -30,7 +30,7 @@ load_dotenv()
 # Read required API keys for model services
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL_ID: str = os.getenv("INTELLIMOE_GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL_ID: str = os.getenv("INTELLIMOE_GEMINI_MODEL", "gemini-3.1-flash-lite")
 
 # Raise exception if either of the keys is missing
 if not GROQ_API_KEY:

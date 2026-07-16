@@ -1,0 +1,54 @@
+﻿# -- Python cache -------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# -- Virtual environments -----------------------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# -- Version control ----------------------------------------------
+.git/
+.gitignore
+
+# -- IDE / Editor -------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# -- Test artefacts -----------------------------------------------
+.pytest_cache/
+htmlcov/
+.coverage
+*.coveragerc
+
+# -- OS artefacts -------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# -- Logs (can be large) ------------------------------------------
+logs/
+*.log
+streamlit.log
+streamlit.out.log
+streamlit.err.log
+
+# -- Local dev scripts / docs ------------------------------------
+start_streamlit.ps1
+docs/
+
+# -- Markdown reports (not needed at runtime) ---------------------
+*.md
+
+# -- Jupyter Notebooks (not needed in container) ------------------
+*.ipynb
+.ipynb_checkpoints/
+
+# -- Temporary / scratch files ------------------------------------
+*.tmp
+*.bak
