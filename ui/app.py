@@ -27,11 +27,8 @@ import streamlit.components.v1 as st_components
 import pandas as pd
 
 def _render_html(html_code: str, height: int = 0, width: int = 0) -> None:
-    """Safely render HTML/JS using st.html (Streamlit 1.34+) to avoid deprecation warnings."""
-    if hasattr(st, "html") and height == 0 and width == 0:
-        st.html(html_code)
-    else:
-        st_components.html(html_code, height=height, width=width)
+    """Render HTML/JS component with iframe parent DOM access for custom controls (+ upload button, voice mic)."""
+    st_components.html(html_code, height=height, width=width)
 
 # ---------------------------------------------------------------------------
 # Path fix — ensure project root is on sys.path so all imports resolve
