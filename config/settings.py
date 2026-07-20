@@ -51,9 +51,8 @@ if not GEMINI_API_KEY:
     )
 
 if not OPENAI_API_KEY:
-    raise ValueError(
-        "Configuration Error: 'OPENAI_API_KEY' environment variable is missing. "
-        "Please set it in your environment or a .env file."
+    logging.warning(
+        "OPENAI_API_KEY environment variable is missing. OpenAI fallback will be disabled."
     )
 
 # ---------------------------------------------------------------------------
