@@ -26,6 +26,13 @@ import streamlit as st
 import streamlit.components.v1 as st_components
 import pandas as pd
 
+def _render_html(html_code: str) -> None:
+    """Safely render HTML/JS using st.html (Streamlit 1.34+) to avoid deprecation warnings."""
+    if hasattr(st, "html"):
+        st.html(html_code)
+    else:
+        st_components.html(html_code, height=0)
+
 # ---------------------------------------------------------------------------
 # Path fix — ensure project root is on sys.path so all imports resolve
 # ---------------------------------------------------------------------------
@@ -1297,9 +1304,9 @@ if hasattr(st, "dialog"):
             
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
-                save_btn = st.form_submit_button("Save Changes", use_container_width=True, type="primary")
+                save_btn = st.form_submit_button("Save Changes", width="stretch", type="primary")
             with col_btn2:
-                close_btn = st.form_submit_button("Cancel", use_container_width=True)
+                close_btn = st.form_submit_button("Cancel", width="stretch")
                 
             if save_btn:
                 if not new_email or "@" not in new_email:
@@ -1335,7 +1342,7 @@ if hasattr(st, "dialog"):
             if st.session_state.dev_panel in _DEV_OPTIONS else 0
         )
         st.session_state.dev_panel = None if dev_selection == "-- None (Disabled) --" else dev_selection
-        if st.button("Apply and Close", use_container_width=True):
+        if st.button("Apply and Close", width="stretch"):
             st.rerun()
 
 
@@ -1366,7 +1373,7 @@ if hasattr(st, "dialog"):
         st.markdown("#### Account & Usage Profile")
         st.text_input("Active User", value=_get_signed_in_email(), disabled=True)
         st.info("IntelliMoE is configured with local Groq and Gemini API keys.")
-        if st.button("Close", use_container_width=True):
+        if st.button("Close", width="stretch"):
             st.rerun()
 
 
@@ -1404,7 +1411,7 @@ def render_sidebar() -> None:
 
         # ── New Chat button ────────────────────────────────────────────────────
         st.markdown("<div class='sb-new-chat-wrap'>", unsafe_allow_html=True)
-        if st.button("＋  New Chat", key="new_chat_sidebar_btn", use_container_width=True):
+        if st.button("＋  New Chat", key="new_chat_sidebar_btn", width="stretch"):
             create_new_chat()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1500,13 +1507,13 @@ def render_sidebar() -> None:
                     if st.button(
                         f"💬  {title}",
                         key=f"chat_select_{chat_id}",
-                        use_container_width=True,
+                        width="stretch",
                     ):
                         st.session_state.current_chat_id = chat_id
                         st.session_state.just_generated = False
                         st.rerun()
                 with col_chat2:
-                    with st.popover("⋯", key=f"chat_menu_trigger_{chat_id}", use_container_width=True):
+                    with st.popover("⋯", key=f"chat_menu_trigger_{chat_id}", width="stretch"):
                         st.markdown("<p style='font-size:0.8rem;font-weight:600;margin:0 0 0.3rem 0;color:#c9d1d9;'>Rename Conversation</p>", unsafe_allow_html=True)
                         rename_input = st.text_input(
                             "Rename",
@@ -1524,7 +1531,7 @@ def render_sidebar() -> None:
                         if st.button(
                             "🗑️  Delete Chat",
                             key=f"chat_delete_action_{chat_id}",
-                            use_container_width=True,
+                            width="stretch",
                             type="secondary"
                         ):
                             delete_chat(chat_id)
@@ -1658,13 +1665,12 @@ def render_sidebar() -> None:
             unsafe_allow_html=True,
         )
 
-        import streamlit.components.v1 as _stc  # noqa: PLC0415
-        _stc.html(
+        _render_html(
             """
             <script>
             (function() {
-                var par = window.parent;
-                var doc = par.document;
+                var par = window.parent || window;
+                var doc = (par && par.document) || document;
 
                 // Initialize Speech Recognition on parent context if not already done
                 if (!par._speechRecognition) {
@@ -2259,7 +2265,7 @@ def _render_dev_panel(dev_panel: str, active_chat: dict) -> None:
             from benchmark.history import get_benchmark_history  # noqa: PLC0415
 
             evaluator = ModelEvaluator()
-            if st.button("🚀 Run Complete Benchmark Suite", use_container_width=True):
+            if st.button("🚀 Run Complete Benchmark Suite", width="stretch"):
                 with st.spinner("⚡ Running benchmark queries…"):
                     try:
                         evaluator.run_benchmark(num_queries_per_domain=1)
@@ -2293,7 +2299,7 @@ def _render_dev_panel(dev_panel: str, active_chat: dict) -> None:
                     "Provider", "Model Name", "Avg Latency", "First-Token",
                     "Success Rate", "Avg Cost", "Utility Score",
                 ]
-                st.dataframe(pres, use_container_width=True)
+                st.dataframe(pres, width="stretch")
 
                 st.markdown("#### 📊 Metric Analytics Charts")
                 c1, c2 = st.columns(2)
@@ -2317,7 +2323,7 @@ def _render_dev_panel(dev_panel: str, active_chat: dict) -> None:
                     data=csv_data,
                     file_name="benchmark_history.csv",
                     mime="text/csv",
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 st.info(
@@ -2503,7 +2509,7 @@ def _render_dev_panel(dev_panel: str, active_chat: dict) -> None:
                     data=csv_eval,
                     file_name="evaluation_history.csv",
                     mime="text/csv",
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 if not eval_metrics:
@@ -2523,7 +2529,7 @@ def render_main() -> None:
     feedback: dict = active_chat["feedback"]
 
     # Inject JS to remove Streamlit's Material-icon 'expand_more' chevron from all popover buttons
-    st_components.html("""
+    _render_html("""
     <script>
     (function removePopoversChevron() {
         function hideChevrons() {
@@ -2608,7 +2614,7 @@ def render_main() -> None:
                     ),
                     "Dependencies": deps,
                 })
-            st.dataframe(pd.DataFrame(steps_data), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(steps_data), width="stretch", hide_index=True)
             st.markdown("---")
 
             st.markdown("#### ⏱️ Orchestration Timeline")
@@ -2833,11 +2839,11 @@ def render_main() -> None:
     file_list_json = json.dumps(file_list)
 
     # JavaScript DOM manipulation injection via custom hidden HTML iframe
-    st_components.html(
+    _render_html(
         f"""
         <script>
         (function() {{
-            const doc = window.parent.document;
+            const doc = (window.parent ? window.parent.document : document);
             
             function setupChatGPTInput() {{
                 const chatInput = doc.querySelector('[data-testid="stChatInput"]');
@@ -3460,7 +3466,7 @@ def _render_evaluation_dashboard(active_chat: dict) -> None:
         with c_stats1:
             st.metric(label="📊 Total Classified Requests", value=len(history_df))
 
-        st.dataframe(pres_df, use_container_width=True, hide_index=True)
+        st.dataframe(pres_df, width="stretch", hide_index=True)
 
         # ── Visual Analytics Charts ──
         st.markdown("#### 📊 Router Visual Analytics")
@@ -3500,7 +3506,7 @@ def _render_evaluation_dashboard(active_chat: dict) -> None:
                 "Status": "✅ SUCCESS" if log.success else f"❌ FAILED: {log.error}"
             })
         if raw_data:
-            st.dataframe(pd.DataFrame(raw_data), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(raw_data), width="stretch", hide_index=True)
         else:
             st.text("No raw logs found.")
 
@@ -3513,7 +3519,7 @@ def _render_evaluation_dashboard(active_chat: dict) -> None:
     # ── Database Actions ──
     col_clear_fb, col_logout = st.columns([1, 1])
     with col_clear_fb:
-        if st.button("🧹 Clear SQLite Feedback Logs", use_container_width=True):
+        if st.button("🧹 Clear SQLite Feedback Logs", width="stretch"):
             fs.clear_feedback()
             st.toast("SQLite feedback logs cleared! 🧼", icon="🗑️")
             st.rerun()
@@ -3542,7 +3548,7 @@ def _render_evaluation_dashboard(active_chat: dict) -> None:
             st.bar_chart(fb_df.set_index("Expert")["Net Rating"], color="#10b981")
 
         st.markdown("##### 📊 Expert Ratings Analytics Summary")
-        st.dataframe(fb_df, use_container_width=True, hide_index=True)
+        st.dataframe(fb_df, width="stretch", hide_index=True)
 
     # ── Prompt Optimization Recommendations ──
     st.markdown("<br>", unsafe_allow_html=True)
@@ -3613,7 +3619,7 @@ def render_login_screen() -> None:
         password_val = st.text_input("Password", type="password", value="••••••••", placeholder="Enter password")
         
         st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-        submit_btn = st.form_submit_button("Sign In", use_container_width=True)
+        submit_btn = st.form_submit_button("Sign In", width="stretch")
         
         if submit_btn:
             if not email_val or "@" not in email_val:
