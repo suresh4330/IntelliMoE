@@ -14,5 +14,8 @@ __pycache__/
 
 # Large local databases/models
 data/chroma_db/
-models/
+models/*.bin
+models/*.safetensors
+models/*.pt
+models/*.onnx
 
