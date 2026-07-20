@@ -63,11 +63,18 @@ def get_mongo_client(timeout_ms: int = 2000) -> Optional[Any]:
         return _mongo_client
 
     try:
-        _mongo_client = MongoClient(
-            MONGODB_URI,
-            serverSelectionTimeoutMS=timeout_ms,
-            connectTimeoutMS=timeout_ms,
-        )
+        mongo_kwargs = {
+            "serverSelectionTimeoutMS": timeout_ms,
+            "connectTimeoutMS": timeout_ms,
+            "tlsAllowInvalidCertificates": True,
+        }
+        try:
+            import certifi
+            mongo_kwargs["tlsCAFile"] = certifi.where()
+        except ImportError:
+            pass
+
+        _mongo_client = MongoClient(MONGODB_URI, **mongo_kwargs)
         # Test connection with a fast admin ping
         _mongo_client.admin.command("ping")
         logger.info("MongoDB client connected successfully to database '%s'.", MONGODB_DB_NAME)
