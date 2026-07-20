@@ -3,6 +3,7 @@
 
 # ── Core AI / Model ─────────────────────────────────────────────────────────
 torch>=2.2.0
+torchvision>=0.17.0
 transformers>=4.40.0
 accelerate>=0.29.0
 

@@ -1,4 +1,4 @@
-﻿# -----------------------------------------------------------------
+# -----------------------------------------------------------------
 # IntelliMoE -- Production Dockerfile
 # Base image : python:3.11-slim
 # Port       : 8501
@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #         CUDA/GPU binaries that are unused in this container).
 RUN pip install --no-cache-dir \
     torch>=2.2.0 \
+    torchvision>=0.17.0 \
     --index-url https://download.pytorch.org/whl/cpu
 
 # Step 2: Install remaining requirements
@@ -46,7 +47,7 @@ COPY . .
 
 # -- Streamlit container configuration ----------------------------
 RUN mkdir -p /root/.streamlit && \
-    printf '[server]\nheadless = true\nenableCORS = false\nenableXsrfProtection = false\n\n[browser]\ngatherUsageStats = false\n' \
+    printf '[server]\nheadless = true\nenableCORS = false\nenableXsrfProtection = false\nfileWatcherType = "none"\n\n[browser]\ngatherUsageStats = false\n' \
     > /root/.streamlit/config.toml
 
 # -- Port ---------------------------------------------------------
