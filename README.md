@@ -348,8 +348,10 @@ GROQ_API_KEY=your_groq_api_key
 TAVILY_API_KEY=your_tavily_api_key
 SERPER_API_KEY=your_serper_api_key
 
-# Optional
+# Optional — OpenAI (gracefully falls back to Gemini/Groq if quota exceeded)
 OPENAI_API_KEY=your_openai_api_key
+
+# Optional — MongoDB Atlas (falls back to local JSON if not set or connection fails)
 MONGODB_URI=your_mongodb_atlas_connection_string
 ```
 
