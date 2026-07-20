@@ -33,7 +33,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #         CUDA/GPU binaries that are unused in this container).
 RUN pip install --no-cache-dir \
     torch>=2.2.0 \
-    torchvision>=0.17.0 \
     --index-url https://download.pytorch.org/whl/cpu
 
 # Step 2: Install remaining requirements
