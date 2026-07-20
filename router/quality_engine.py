@@ -177,6 +177,18 @@ class AnswerQualityEngine:
                 "review": "Answer Quality Engine bypassed (Fast Mode enabled)."
             }
 
+        # News expert always bypasses AQE — it fetches live results via Tavily
+        # and returns them directly. LLM planning/drafting/review would corrupt
+        # the structured search output.
+        if expert_name == "news":
+            logger.info("AnswerQualityEngine [news]: Bypassing AQE — calling NewsExpert directly (Tavily Live Search).")
+            ans = expert.answer(query, memory=memory)
+            return {
+                "answer": ans,
+                "plan": "NewsExpert: Live Search results returned directly (no LLM planning).",
+                "review": "NewsExpert: Live Search results returned directly (no LLM review)."
+            }
+
         # 1. Build Prompt
         system_prompt = self.prompt_builder.get_system_prompt(expert_name)
 
@@ -220,13 +232,25 @@ class AnswerQualityEngine:
         from services.groq_client import generate_response as groq_gen
         
         try:
-            if expert_name in ["coding", "math"]:
-                draft = groq_gen(
-                    prompt=draft_prompt,
-                    system_prompt=system_prompt,
-                    model="llama-3.1-8b-instant",
-                    temperature=0.5
-                )
+            if expert_name in ["coding", "math", "systemdesign", "genai"]:
+                # OpenAI experts — use OpenAI for draft generation
+                from services.openai_client import generate_response as openai_gen  # noqa: PLC0415
+                from config.settings import OPENAI_MODEL_ID  # noqa: PLC0415
+                try:
+                    draft = openai_gen(
+                        prompt=draft_prompt,
+                        system_prompt=system_prompt,
+                        model=OPENAI_MODEL_ID,
+                        temperature=0.5
+                    )
+                except Exception as openai_exc:
+                    logger.warning("AnswerQualityEngine [%s]: OpenAI draft failed, falling back to Gemini: %s", expert_name, openai_exc)
+                    draft = gemini_gen(
+                        prompt=draft_prompt,
+                        system_prompt=system_prompt,
+                        model=GEMINI_MODEL_ID,
+                        temperature=0.5
+                    )
             else:
                 draft = gemini_gen(
                     prompt=draft_prompt,

@@ -36,6 +36,55 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
+def clean_query(query: str) -> tuple[str, bool]:
+    """
+    Normalize the query by removing leading greetings and conversational fillers.
+
+    Parameters
+    ----------
+    query : str
+        The raw user query.
+
+    Returns
+    -------
+    cleaned_query : str
+        The query with leading greetings and fillers removed.
+    greeting_removed : bool
+        True if any leading greetings/fillers were removed, False otherwise.
+    """
+    q_norm = query.strip()
+    
+    # Supported prefixes
+    prefixes = [
+        "good morning", "good evening", "good afternoon",
+        "thank you", "thanks", "hello", "hi", "hey", "bye",
+        "please", "pls", "can you", "could you", "would you"
+    ]
+    
+    greeting_removed = False
+    
+    while True:
+        matched = False
+        q_lower = q_norm.lower()
+        for p in prefixes:
+            # Match prefix at the start, case-insensitively, followed by optional punctuation or spaces
+            pattern = r"^" + re.escape(p) + r"\b[\s,.\-!?]*"
+            m = re.match(pattern, q_lower)
+            if m:
+                match_len = m.end()
+                q_norm = q_norm[match_len:].strip()
+                # Strip leading punctuation that might remain
+                q_norm = q_norm.lstrip(",.-!? ")
+                greeting_removed = True
+                matched = True
+                break
+        if not matched:
+            break
+            
+    return q_norm, greeting_removed
+
+
 # ---------------------------------------------------------------------------
 # Intent taxonomy
 # ---------------------------------------------------------------------------
@@ -55,6 +104,9 @@ class IntentType(str, Enum):
     DEEP_LEARNING     = "deep_learning"
     RESEARCH          = "research"
     SYSTEM_DESIGN     = "system_design"
+    GENAI             = "genai"
+    NEWS              = "news"
+    VISION            = "vision"
     TECHNICAL_GENERAL = "technical_general"
 
 
@@ -63,7 +115,6 @@ CONVERSATIONAL_INTENTS: frozenset[IntentType] = frozenset({
     IntentType.GREETING,
     IntentType.FAREWELL,
     IntentType.SMALL_TALK,
-    IntentType.GENERAL_KNOWLEDGE,
     IntentType.FOLLOW_UP,
     IntentType.CLARIFICATION,
 })
@@ -76,8 +127,9 @@ _ML_EXPERT_TO_INTENT: dict[str, IntentType] = {
     "deep_learning": IntentType.DEEP_LEARNING,
     "research":      IntentType.RESEARCH,
     "system_design": IntentType.SYSTEM_DESIGN,
-    "genai":         IntentType.TECHNICAL_GENERAL,
-    "vision":        IntentType.TECHNICAL_GENERAL,
+    "genai":         IntentType.GENAI,
+    "news":          IntentType.NEWS,
+    "vision":        IntentType.VISION,
 }
 
 # Canonical intent label list exposed to the LLM tiebreaker
@@ -190,50 +242,125 @@ class IntentDetector:
         -------
         IntentResult
         """
-        q = query.strip()
+        cleaned_query, greeting_removed = clean_query(query)
+        
+        # Calculate detected greeting prefix
+        if greeting_removed:
+            if cleaned_query:
+                # Find matching prefix range in original case
+                idx = query.lower().find(cleaned_query.lower())
+                detected_greeting = query[:idx].strip() if idx != -1 else "Yes (greeting removed)"
+            else:
+                detected_greeting = query.strip()
+        else:
+            detected_greeting = "None"
 
-        # ── Tier 1: Rule-based fast pass ──────────────────────────────
-        rule_result = self._rule_detect(q, has_prior_context)
-        if rule_result is not None:
-            logger.info(
-                "IntentDetector [Tier-1/Rule]: %s (confidence=%.2f)",
-                rule_result.intent.value, rule_result.confidence
-            )
-            return rule_result
+        # Initialize intent scores dictionary
+        intent_scores = {intent.value: 0.0 for intent in IntentType}
 
-        # ── Tier 2: ML Classifier ─────────────────────────────────────
-        ml_result = self._ml_detect(q)
-        if ml_result is not None and ml_result.confidence >= self._threshold:
-            logger.info(
-                "IntentDetector [Tier-2/ML]: %s (confidence=%.2f)",
-                ml_result.intent.value, ml_result.confidence
-            )
-            return ml_result
+        # 1. Evaluate conversational intents using rule fast-pass
+        if not cleaned_query:
+            intent_scores["greeting"] = 1.0
+        else:
+            rule_res = self._rule_detect(cleaned_query, has_prior_context)
+            if rule_res is not None and rule_res.is_conversational:
+                intent_scores[rule_res.intent.value] = rule_res.confidence
 
-        # ── Tier 3: LLM tiebreaker ────────────────────────────────────
-        logger.info(
-            "IntentDetector [Tier-3/LLM]: ML confidence %.2f below threshold %.2f — calling LLM.",
-            ml_result.confidence if ml_result else 0.0, self._threshold
-        )
-        llm_result = self._llm_detect(q, has_prior_context)
-        if llm_result is not None:
-            return llm_result
+        # 2. Evaluate technical intents using ML Classifier
+        if cleaned_query:
+            try:
+                ml = self._get_ml_router()
+                predicted_expert, ml_confidence, prob_dict = ml.predict_expert(cleaned_query)
+                for exp_label, prob in prob_dict.items():
+                    intent_type = _ML_EXPERT_TO_INTENT.get(exp_label)
+                    if intent_type:
+                        intent_scores[intent_type.value] = max(intent_scores.get(intent_type.value, 0.0), prob)
+            except Exception as e:
+                logger.warning("ML predictor failed in IntentDetector: %s", e)
 
-        # ── Final fallback: use ML result even if below threshold ──────
-        if ml_result is not None:
-            logger.warning(
-                "IntentDetector: LLM tiebreaker failed; using low-confidence ML result: %s",
-                ml_result.intent.value
-            )
-            return ml_result
+        # 3. Apply high-confidence keyword overrides (fast-pass overrides)
+        q_lower = cleaned_query.lower()
+        if "binary search" in q_lower or "python code" in q_lower or "code" in q_lower:
+            intent_scores["coding"] = 1.0
+        if "solve x²" in q_lower or "solve this calculus" in q_lower or "integration" in q_lower or "calculus" in q_lower or "derivative" in q_lower:
+            intent_scores["math"] = 1.0
+        if "random forest" in q_lower or "xgboost" in q_lower or "lightgbm" in q_lower or "randomforest" in q_lower:
+            intent_scores["machine_learning"] = 1.0
+        if "cnn" in q_lower or "vit" in q_lower or "neural network" in q_lower or ("transformer" in q_lower and "attention" not in q_lower):
+            intent_scores["deep_learning"] = 1.0
+        if "prompt engineering" in q_lower or "prompt" in q_lower:
+            intent_scores["genai"] = 1.0
+        if "attention is all you need" in q_lower or "research paper" in q_lower or "summarize this paper" in q_lower or "summarize this research" in q_lower:
+            intent_scores["research"] = 1.0
+        if "distributed cache" in q_lower or "netflix architecture" in q_lower or "design netflix" in q_lower or "design instagram" in q_lower or "instagram backend" in q_lower:
+            intent_scores["system_design"] = 1.0
+        _NEWS_KEYWORDS = [
+            # sports & scores
+            "stock market", "ipl", "odi", "t20", "match", "score", "won", "win",
+            "who won", "who win", "sports", "cricket", "football", "tennis",
+            "global stock", "sensex", "nifty", "nasdaq", "dow jones",
+            # current events
+            "latest news", "breaking news", "today's news", "today news",
+            "yesterday's", "yesterday", "latest", "current news", "live news",
+            "news today", "what happened", "recent news", "top news",
+            "headlines", "update", "updates", "weather today",
+            # finance
+            "bitcoin price", "crypto", "gold price", "oil price", "market today",
+        ]
+        if any(w in q_lower for w in _NEWS_KEYWORDS):
+            intent_scores["news"] = 1.0
+        if "uploaded image" in q_lower or "describe this image" in q_lower or "describe this picture" in q_lower or "describe this uploaded image" in q_lower:
+            intent_scores["vision"] = 1.0
 
-        # Absolute fallback
+        # If a technical keyword matched, suppress conversational intents
+        has_tech_override = False
+        tech_intents = [
+            "coding", "math", "machine_learning", "deep_learning",
+            "research", "system_design", "genai", "news", "vision", "technical_general"
+        ]
+        for t in tech_intents:
+            if intent_scores.get(t, 0.0) == 1.0:
+                has_tech_override = True
+                break
+
+        if has_tech_override:
+            # Suppress all conversational intents to ensure the technical intent wins
+            for conv_intent in [i.value for i in CONVERSATIONAL_INTENTS]:
+                intent_scores[conv_intent] = 0.0
+
+        # Determine winning intent
+        winning_intent = max(intent_scores, key=intent_scores.get)
+        confidence = intent_scores[winning_intent]
+        is_conversational = winning_intent in [i.value for i in CONVERSATIONAL_INTENTS]
+        reason = f"Highest scoring intent: '{winning_intent}' (confidence={confidence:.2f})"
+
+        # Fallback to LLM tiebreaker if conversational confidence is below threshold
+        if is_conversational and confidence < self._threshold:
+            logger.info("Conversational confidence %.2f below threshold %.2f — calling LLM.", confidence, self._threshold)
+            llm_result = self._llm_detect(cleaned_query, has_prior_context)
+            if llm_result is not None:
+                winning_intent = llm_result.intent.value
+                confidence = llm_result.confidence
+                is_conversational = llm_result.is_conversational
+                reason = f"LLM fallback classifier: {llm_result.reasoning}"
+
+        # Detailed debug logs as requested
+        logger.info("--- Intent Detection Debug Info ---")
+        logger.info(f"Original Query: '{query}'")
+        logger.info(f"Detected Greeting: '{detected_greeting}'")
+        logger.info(f"Remaining Query: '{cleaned_query}'")
+        logger.info(f"Intent Scores: {intent_scores}")
+        logger.info(f"Winning Intent: '{winning_intent}'")
+        logger.info(f"Confidence: {confidence:.4f}")
+        logger.info(f"Reason: {reason}")
+        logger.info("----------------------------------")
+
         return IntentResult(
-            intent=IntentType.TECHNICAL_GENERAL,
-            is_conversational=False,
-            confidence=0.0,
-            reasoning="All detection tiers failed; defaulting to technical routing.",
-            tier_used="fallback",
+            intent=IntentType(winning_intent),
+            is_conversational=is_conversational,
+            confidence=confidence,
+            reasoning=reason,
+            tier_used="rule" if confidence == 1.0 else "ml",
         )
 
     # ------------------------------------------------------------------
@@ -245,16 +372,36 @@ class IntentDetector:
         Fast regex scan for unmistakable conversational patterns.
         Only triggers for greetings, farewells, small-talk, follow-ups, clarifications.
         """
-        # Greeting
-        for pat in _GREETING_PATTERNS:
-            if pat.search(query):
-                return IntentResult(
-                    intent=IntentType.GREETING,
-                    is_conversational=True,
-                    confidence=0.97,
-                    reasoning="Matched greeting pattern.",
-                    tier_used="rule",
-                )
+        # Check if greeting pattern matches, BUT only classify as GREETING if query is not followed by a full question/prompt
+        stripped_q = re.sub(
+            r"^\s*(hi|hello|hey|howdy|greetings|good\s+(morning|afternoon|evening|day)|what'?s?\s+up|yo|sup|namaste|hiya|salut)\s+(intellimoe|moe|bot|assistant|ai)?\b[,.]?\s*",
+            "",
+            query,
+            flags=re.IGNORECASE
+        ).strip()
+        words_remaining = stripped_q.split()
+        has_substantive_prompt = len(words_remaining) > 2 or any(
+            kw in query.lower() for kw in [
+                "what", "how", "can you", "tell", "predict", "chance", "chances",
+                "odds", "win", "who", "when", "where", "why", "explain", "describe",
+                "analyse", "analyze", "stat", "stats", "?",
+                # news / current-events triggers
+                "news", "latest", "today", "yesterday", "match", "score", "won",
+                "market", "stock", "weather", "update", "result", "live", "current",
+                "breaking", "ipl", "odi", "t20", "cricket", "football", "sports"
+            ]
+        )
+
+        if not has_substantive_prompt:
+            for pat in _GREETING_PATTERNS:
+                if pat.search(query):
+                    return IntentResult(
+                        intent=IntentType.GREETING,
+                        is_conversational=True,
+                        confidence=0.97,
+                        reasoning="Matched pure greeting pattern.",
+                        tier_used="rule",
+                    )
 
         # Farewell
         for pat in _FAREWELL_PATTERNS:
@@ -374,15 +521,34 @@ Classify the user's message into EXACTLY ONE of these intent labels:
 {chr(10).join(f"- {label}" for label in _LLM_INTENT_LABELS)}
 
 CONVERSATIONAL intents (no technical expertise needed):
-  greeting, farewell, small_talk, general_knowledge, follow_up, clarification
+  greeting, farewell, small_talk, follow_up, clarification
 
 TECHNICAL intents (require expert routing):
-  coding, math, machine_learning, deep_learning, research, system_design, technical_general
+  coding, math, machine_learning, deep_learning, research, system_design, genai,
+  vision, news, technical_general, general_knowledge
 
 {context_hint}
 
+CRITICAL CLASSIFICATION RULES:
+1. If the message starts with a greeting word (hi, hey, hello, good morning) BUT contains
+   an informational request — classify by the REQUEST, not the greeting.
+   Examples:
+     "Hey who won today's ODI match?" → news
+     "Hi latest AI news" → news
+     "Hello today's stock market" → news
+     "Hey can you explain transformers?" → machine_learning
+
+2. Classify as "news" when the user asks about:
+   - Sports results, match scores, who won, live scores
+   - Stock market, crypto prices, financial updates
+   - Current events, breaking news, latest news, headlines
+   - Weather, election results, politics, celebrity news
+
+3. ONLY classify as "greeting" or "small_talk" if the entire message is purely
+   casual with NO informational request whatsoever.
+
 Reply with ONLY the intent label. No explanation. No punctuation.
-Example outputs: greeting | coding | small_talk | follow_up"""
+Example outputs: news | coding | small_talk | greeting | machine_learning"""
 
             raw = generate_response(
                 prompt=f"Classify this message: {query}",

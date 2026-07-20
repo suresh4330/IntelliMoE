@@ -3,16 +3,16 @@ experts/math.py
 ---------------
 MathExpert — mathematics and quantitative reasoning domain.
 
-Updated to use the Groq API (llama3-8b-8192) instead of the local TinyLlama model
-to provide more accurate, faster mathematical and quantitative answers.
+Updated to use the OpenAI API (gpt-4o-mini) instead of the Groq API
+to leverage OpenAI's excellent mathematical reasoning capabilities.
 """
 
 import logging
 from typing import Optional, TYPE_CHECKING
 
-from config.settings import EXPERT_CONFIGS, GenerationConfig
+from config.settings import EXPERT_CONFIGS, OPENAI_MODEL_ID, GenerationConfig
 from experts.base import BaseExpert
-from services.groq_client import generate_response
+from services.openai_client import generate_response
 
 if TYPE_CHECKING:
     from utils.memory import ConversationMemory
@@ -33,10 +33,10 @@ class MathExpert(BaseExpert):
 
     def answer(self, question: str, memory: "Optional[ConversationMemory]" = None) -> str:
         """
-        Generate a mathematical-expert answer using the Groq API.
+        Generate a mathematical-expert answer using the OpenAI API.
 
         This overrides the parent class method to bypass local model loading and
-        use Groq client for inference while preserving the same interface.
+        use OpenAI client for inference while preserving the same interface.
         """
         question = self._validate_question(question)
 
@@ -54,14 +54,14 @@ class MathExpert(BaseExpert):
             full_prompt = question
 
         cfg = self.generation_config
-        logger.info("MathExpert: sending request to Groq API...")
+        logger.info("MathExpert: sending request to OpenAI API...")
 
         try:
-            # Generate the response using Groq client
+            # Generate the response using OpenAI client
             response = generate_response(
                 prompt=full_prompt,
                 system_prompt=self._system_prompt,
-                model="llama-3.1-8b-instant",
+                model=OPENAI_MODEL_ID,
                 temperature=cfg.temperature,
                 max_tokens=cfg.max_new_tokens,
             )
@@ -72,11 +72,11 @@ class MathExpert(BaseExpert):
             self.last_prompt_tokens = (len(full_prompt) + system_len) // 4
             self.last_tokens_generated = len(response) // 4
 
-            logger.info("MathExpert: successfully generated response from Groq API.")
+            logger.info("MathExpert: successfully generated response from OpenAI API.")
             return response
 
         except Exception as exc:
-            logger.exception("MathExpert failed to generate answer using Groq API.")
+            logger.exception("MathExpert failed to generate answer using OpenAI API.")
             raise RuntimeError(
                 f"MathExpert failed to generate an answer. "
                 f"Cause: {type(exc).__name__}: {exc}"

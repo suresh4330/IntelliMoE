@@ -87,6 +87,7 @@ class ExplainableEngine:
                 "plans": router_decision.get("answer_quality_plans", {}),
                 "reviews": router_decision.get("answer_quality_reviews", {})
             },
+            "news_rewriter": router_decision.get("news_rewriter", {}),
             "performance": {
                 "response_time_ms": round(response_time_s * 1000, 2),
                 "tokens": tokens_estimated

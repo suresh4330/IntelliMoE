@@ -92,6 +92,10 @@ class ConversationResult:
     tier_used: str
     reasoning: str
     response_time_s: float = 0.0
+    original_query: str = ""
+    cleaned_query: str = ""
+    greeting_removed: bool = False
+    routing_decision: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -154,22 +158,43 @@ class ConversationLayer:
 
         has_prior_context = not memory.is_empty
 
-        # Step 1: Detect intent
-        intent_result = self._detector.detect(query, has_prior_context=has_prior_context)
+        # Step 1: Normalize query — strip leading greeting words only
+        from conversation_ai.detector import clean_query, IntentResult, IntentType  # noqa: PLC0415
+        cleaned_query, greeting_removed = clean_query(query)
 
-        logger.info(
-            "ConversationLayer: intent='%s', conversational=%s, confidence=%.2f, tier='%s'",
-            intent_result.intent.value,
-            intent_result.is_conversational,
-            intent_result.confidence,
-            intent_result.tier_used,
-        )
+        # If the cleaned query is empty (e.g. user typed ONLY "Hi" or "Hey"),
+        # it is a pure greeting — handle conversationally.
+        if not cleaned_query:
+            intent_result = IntentResult(
+                intent=IntentType.GREETING,
+                is_conversational=True,
+                confidence=1.0,
+                reasoning="Query contained only a greeting/filler with no actionable content.",
+                tier_used="rule",
+            )
+        else:
+            # Step 2: Detect intent on the ORIGINAL full query so the complete
+            # sentence context is available (greeting words are NOT stripped here).
+            # This ensures "Hey who won today's ODI?" is never mistaken for a greeting.
+            intent_result = self._detector.detect(query, has_prior_context=has_prior_context)
 
-        # Step 2: Route decision
-        if intent_result.is_conversational:
+        # Step 3: Add confidence score check for conversation detection
+        # If conversation confidence is below threshold, automatically forward to the Hybrid Router
+        from config.settings import ML_ROUTING_CONFIDENCE_THRESHOLD  # noqa: PLC0415
+        
+        is_conversational = intent_result.is_conversational
+        if is_conversational and intent_result.confidence < ML_ROUTING_CONFIDENCE_THRESHOLD:
+            logger.info(
+                "Conversational confidence (%.2f) below threshold (%.2f) - forwarding to Hybrid Router.",
+                intent_result.confidence, ML_ROUTING_CONFIDENCE_THRESHOLD
+            )
+            is_conversational = False
+
+        # Step 4: Route decision
+        if is_conversational:
             # Generate conversational reply with full memory context
             response = self._responder.respond(
-                query=query,
+                query=cleaned_query if cleaned_query else query,
                 intent_result=intent_result,
                 memory=memory,
             )
@@ -186,9 +211,13 @@ class ConversationLayer:
                 tier_used=intent_result.tier_used,
                 reasoning=intent_result.reasoning,
                 response_time_s=elapsed,
+                original_query=query,
+                cleaned_query=cleaned_query,
+                greeting_removed=greeting_removed,
+                routing_decision="Pure Conversation",
             )
 
-        # Technical intent → signal caller to use Hybrid Router
+        # Technical intent or low-confidence conversational intent → signal caller to use Hybrid Router
         elapsed = time.perf_counter() - t_start
         logger.info(
             "ConversationLayer: forwarding to Hybrid Router (intent='%s', %.3fs).",
@@ -202,4 +231,8 @@ class ConversationLayer:
             tier_used=intent_result.tier_used,
             reasoning=intent_result.reasoning,
             response_time_s=elapsed,
+            original_query=query,
+            cleaned_query=cleaned_query,
+            greeting_removed=greeting_removed,
+            routing_decision="Forward to Hybrid Router",
         )

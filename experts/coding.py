@@ -3,16 +3,17 @@ experts/coding.py
 -----------------
 CodingExpert — software engineering and programming domain.
 
-Updated to use the Groq API (llama3-8b-8192) instead of the local TinyLlama model
-to provide higher-quality code suggestions and faster responses.
+Dual-API Strategy: OpenAI (primary) → Gemini (fallback)
+  - Primary  : OpenAI gpt-4o-mini  — excellent reasoning and code quality.
+  - Fallback : Google Gemini       — activates automatically if OpenAI fails
+                                     (quota, network error, etc.)
 """
 
 import logging
 from typing import Optional, TYPE_CHECKING
 
-from config.settings import EXPERT_CONFIGS, GenerationConfig
+from config.settings import EXPERT_CONFIGS, OPENAI_MODEL_ID, GEMINI_MODEL_ID, GenerationConfig
 from experts.base import BaseExpert
-from services.groq_client import generate_response
 
 if TYPE_CHECKING:
     from utils.memory import ConversationMemory
@@ -33,10 +34,10 @@ class CodingExpert(BaseExpert):
 
     def answer(self, question: str, memory: "Optional[ConversationMemory]" = None) -> str:
         """
-        Generate a coding-expert answer using the Groq API.
+        Generate a coding-expert answer using OpenAI (primary) with Gemini as fallback.
 
-        This overrides the parent class method to bypass local model loading and
-        use Groq client for inference while preserving the same interface.
+        Tries OpenAI first. If it fails for any reason (quota, timeout, error),
+        automatically falls back to the Gemini API transparently.
         """
         question = self._validate_question(question)
 
@@ -54,30 +55,58 @@ class CodingExpert(BaseExpert):
             full_prompt = question
 
         cfg = self.generation_config
-        logger.info("CodingExpert: sending request to Groq API...")
+        system_len = len(self._system_prompt) if self._system_prompt else 0
 
+        # ------------------------------------------------------------------
+        # Primary: OpenAI API
+        # ------------------------------------------------------------------
         try:
-            # Generate the response using Groq client
-            response = generate_response(
+            from services.openai_client import generate_response as openai_generate  # noqa: PLC0415
+
+            logger.info("CodingExpert: sending request to OpenAI API (primary)...")
+            response = openai_generate(
                 prompt=full_prompt,
                 system_prompt=self._system_prompt,
-                model="llama-3.1-8b-instant",
+                model=OPENAI_MODEL_ID,
                 temperature=cfg.temperature,
                 max_tokens=cfg.max_new_tokens,
             )
 
-            # Update token metrics for telemetry/cost tracking
-            # 1 token is roughly 4 characters
-            system_len = len(self._system_prompt) if self._system_prompt else 0
             self.last_prompt_tokens = (len(full_prompt) + system_len) // 4
             self.last_tokens_generated = len(response) // 4
 
-            logger.info("CodingExpert: successfully generated response from Groq API.")
+            logger.info("CodingExpert: successfully generated response from OpenAI API.")
             return response
 
-        except Exception as exc:
-            logger.exception("CodingExpert failed to generate answer using Groq API.")
+        except Exception as openai_exc:
+            logger.warning(
+                "CodingExpert: OpenAI API failed (%s). Falling back to Gemini API...",
+                openai_exc,
+            )
+
+        # ------------------------------------------------------------------
+        # Fallback: Gemini API
+        # ------------------------------------------------------------------
+        try:
+            from services.gemini_client import generate_response as gemini_generate  # noqa: PLC0415
+
+            logger.info("CodingExpert: sending request to Gemini API (fallback)...")
+            response = gemini_generate(
+                prompt=full_prompt,
+                system_prompt=self._system_prompt,
+                model=GEMINI_MODEL_ID,
+                temperature=cfg.temperature,
+            )
+
+            self.last_prompt_tokens = (len(full_prompt) + system_len) // 4
+            self.last_tokens_generated = len(response) // 4
+
+            logger.info("CodingExpert: successfully generated response from Gemini API (fallback).")
+            return response
+
+        except Exception as gemini_exc:
+            logger.exception("CodingExpert: both OpenAI and Gemini APIs failed.")
             raise RuntimeError(
                 f"CodingExpert failed to generate an answer. "
-                f"Cause: {type(exc).__name__}: {exc}"
-            ) from exc
+                f"OpenAI error: {openai_exc} | Gemini error: {gemini_exc}"
+            ) from gemini_exc

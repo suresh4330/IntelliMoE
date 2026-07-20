@@ -9,6 +9,8 @@ from experts.deeplearning  import DeepLearningExpert
 from experts.genai         import GenAIExpert
 from experts.research      import ResearchExpert
 from experts.system_design import SystemDesignExpert
+from experts.vision        import VisionExpert
+from experts.news          import NewsExpert
 
 __all__ = [
     "BaseExpert",
@@ -19,4 +21,6 @@ __all__ = [
     "GenAIExpert",
     "ResearchExpert",
     "SystemDesignExpert",
+    "VisionExpert",
+    "NewsExpert",
 ]

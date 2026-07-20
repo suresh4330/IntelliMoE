@@ -140,7 +140,7 @@ class ConversationMemory:
     def __init__(
         self,
         max_turns: int = 10,
-        max_chars_per_message: int = 1500,
+        max_chars_per_message: int = 100000,
     ) -> None:
         if max_turns < 1:
             raise ValueError("max_turns must be at least 1.")

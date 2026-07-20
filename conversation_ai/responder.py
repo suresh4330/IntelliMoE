@@ -31,20 +31,17 @@ logger = logging.getLogger(__name__)
 # System persona prompt
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PERSONA = """You are IntelliMoE, a smart, conversational, and genuinely helpful AI assistant.
+_SYSTEM_PERSONA = """You are IntelliMoE, a smart, highly capable, articulate, and friendly AI assistant.
 
-Your personality:
-- Human-like, natural, and warm. Speak like a friendly colleague or friend, not a stiff computer program.
-- Conversational and fluid — use varied sentence structures, transition words, and natural phrasing.
-- Empathetic and engaging — acknowledge the user's feelings, questions, or updates. If they share good news, be happy for them! If they share a problem, be supportive.
-- Brief but descriptive — keep casual chat to 1-3 sentences, but provide complete and useful answers when they ask for information.
-- Multilingual — if the user writes in Telugu, Hindi, Tamil, or any other language, respond in that same language naturally. If they write in mixed English (e.g. Hinglish or Telugish), reply in a similar friendly, natural mixed style!
+Your personality & style:
+- Human-like, natural, articulate, and engaging. Speak like an expert colleague or friend.
+- Rich and comprehensive — for questions asking for information, facts, stats, predictions, explanations, sports analysis, or advice, deliver detailed, well-structured markdown responses with headings, bullet points, statistics, and clear insights (just like ChatGPT).
+- Multilingual — if the user writes in Telugu, Hindi, Tamil, or any other language, respond in that same language naturally. If they write in mixed English (e.g. Hinglish or Telugish), reply in a similar friendly, natural style!
 
 Strict rules:
 - NEVER say "As an AI" or refer to yourself as a language model.
-- Avoid repetitive structural templates. Do not start every sentence with the same words.
-- Be supportive, friendly, and helpful. Use emojis naturally where they fit.
-- If the user's message is in a local language (e.g., Telugu "ela unnav"), reply warmly in that language (e.g. "Nenu chala baagunnanu, thank you! Meeru ela unnaru? Em help kavali?").
+- Always provide complete, informative, and detailed answers when requested. Do NOT give short cop-out responses for informative questions.
+- Use markdown formatting (bold text, bullet points, numbered lists, tables, callouts) to make answers structured, visual, and easy to read.
 """
 
 
@@ -125,23 +122,23 @@ def _build_prompt_for_intent(
 
     intent_instructions = {
         "greeting": (
-            "Generate a warm, friendly greeting response. "
-            + ("This is the FIRST message — welcome them genuinely but briefly." if is_first_message
-               else "This is NOT the first message — don't say 'welcome' again. Acknowledge them naturally.")
-            + " Ask what they're working on or how you can help. Keep it to 1–2 sentences. Vary your wording."
+            "Generate a warm, friendly response. "
+            + ("This is the FIRST message — welcome them genuinely." if is_first_message
+               else "Acknowledge them naturally.")
+            + " IMPORTANT: If the user's message contains a question, request for facts, sports analysis, predictions, or information, provide a FULL, detailed, structured markdown response answering their question completely (with headings, statistics, odds, bullet points, predictions) in addition to a warm greeting."
         ),
         "farewell": (
             "The user is saying goodbye. Respond warmly and briefly. "
             "Wish them well. Keep it to 1 sentence. Be natural."
         ),
         "small_talk": (
-            "Respond to this small talk naturally and briefly (2–3 sentences). "
-            "Be warm and genuine. If they asked how you are, answer naturally then redirect to them. "
-            "Optionally ask what they're working on."
+            "Respond to this message naturally and helpfully. "
+            "IMPORTANT: If the user's message contains a specific question, request for facts, sports predictions, odds, statistics, or advice, deliver a rich, detailed, comprehensive markdown answer with sections, bullet points, and clear insights (just like ChatGPT), in addition to a warm casual reply."
         ),
         "general_knowledge": (
-            "Answer this general knowledge question conversationally and accurately. "
-            "Be helpful and clear. Keep it concise. If relevant, mention you can dive deeper."
+            "Provide a comprehensive, accurate, detailed, and structured answer to the user's question. "
+            "Include relevant facts, statistics, odds, reasoning, bullet points, and clear headings where appropriate. "
+            "Format the response cleanly using markdown (bold text, bullet points, numbered lists, tables) so it is rich, informative, and engaging, just like ChatGPT."
         ),
         "follow_up": (
             "The user wants to continue or expand on the previous topic. "
@@ -157,10 +154,10 @@ def _build_prompt_for_intent(
 
     instruction = intent_instructions.get(
         intent_type,
-        "Respond naturally and helpfully to the user's message."
+        "Respond naturally, comprehensively, and helpfully to the user's message using structured markdown formatting."
     )
 
-    return base + f"Task: {instruction}\n\nGenerate a natural, conversational response:"
+    return base + f"Task: {instruction}\n\nGenerate a rich, detailed, conversational response:"
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +174,7 @@ class ConversationalResponder:
     Parameters
     ----------
     model : str
-        Groq model to use. Defaults to "llama-3.1-8b-instant" for speed.
+        Groq model to use. Defaults to "llama-3.3-70b-versatile" for intelligence.
     temperature : float
         Sampling temperature. Higher = more varied responses.
     max_tokens : int
@@ -188,7 +185,7 @@ class ConversationalResponder:
         self,
         model: str = "llama-3.3-70b-versatile",
         temperature: float = 0.72,
-        max_tokens: int = 200,
+        max_tokens: int = 2500,
     ) -> None:
         self._model = model
         self._temperature = temperature

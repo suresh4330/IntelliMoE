@@ -31,6 +31,11 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL_ID: str = os.getenv("INTELLIMOE_GEMINI_MODEL", "gemini-3.1-flash-lite")
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL_ID: str = os.getenv("INTELLIMOE_OPENAI_MODEL", "gpt-4o-mini")
+TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+SERPER_API_KEY: str = os.getenv("SERPER_API_KEY", "")
+
 
 # Raise exception if either of the keys is missing
 if not GROQ_API_KEY:
@@ -42,6 +47,12 @@ if not GROQ_API_KEY:
 if not GEMINI_API_KEY:
     raise ValueError(
         "Configuration Error: 'GEMINI_API_KEY' environment variable is missing. "
+        "Please set it in your environment or a .env file."
+    )
+
+if not OPENAI_API_KEY:
+    raise ValueError(
+        "Configuration Error: 'OPENAI_API_KEY' environment variable is missing. "
         "Please set it in your environment or a .env file."
     )
 
@@ -88,25 +99,31 @@ class GenerationConfig:
 #   - GenAI: higher (0.75) → richer, more expansive explanations.
 EXPERT_CONFIGS: dict[str, GenerationConfig] = {
     "coding": GenerationConfig(
-        max_new_tokens=512, temperature=0.70, top_p=0.95, repetition_penalty=1.10
+        max_new_tokens=2500, temperature=0.70, top_p=0.95, repetition_penalty=1.10
     ),
     "math": GenerationConfig(
-        max_new_tokens=512, temperature=0.30, top_p=0.90, repetition_penalty=1.10
+        max_new_tokens=2500, temperature=0.30, top_p=0.90, repetition_penalty=1.10
     ),
     "ml": GenerationConfig(
-        max_new_tokens=512, temperature=0.60, top_p=0.92, repetition_penalty=1.10
+        max_new_tokens=2500, temperature=0.60, top_p=0.92, repetition_penalty=1.10
     ),
     "deeplearning": GenerationConfig(
-        max_new_tokens=512, temperature=0.65, top_p=0.92, repetition_penalty=1.10
+        max_new_tokens=2500, temperature=0.65, top_p=0.92, repetition_penalty=1.10
     ),
     "genai": GenerationConfig(
-        max_new_tokens=512, temperature=0.75, top_p=0.95, repetition_penalty=1.15
+        max_new_tokens=2500, temperature=0.75, top_p=0.95, repetition_penalty=1.15
     ),
     "research": GenerationConfig(
-        max_new_tokens=600, temperature=0.50, top_p=0.90, repetition_penalty=1.15
+        max_new_tokens=2500, temperature=0.50, top_p=0.90, repetition_penalty=1.15
     ),
     "systemdesign": GenerationConfig(
-        max_new_tokens=600, temperature=0.60, top_p=0.93, repetition_penalty=1.10
+        max_new_tokens=2500, temperature=0.60, top_p=0.93, repetition_penalty=1.10
+    ),
+    "vision": GenerationConfig(
+        max_new_tokens=2500, temperature=0.50, top_p=0.92, repetition_penalty=1.10
+    ),
+    "news": GenerationConfig(
+        max_new_tokens=2500, temperature=0.40, top_p=0.90, repetition_penalty=1.10
     ),
 }
 
@@ -129,6 +146,11 @@ MIN_SCORE_THRESHOLD: int = int(os.getenv("INTELLIMOE_MIN_SCORE", "1"))
 
 # Hard cap on the number of experts activated per query.
 MAX_EXPERTS: int = int(os.getenv("INTELLIMOE_MAX_EXPERTS", "5"))
+
+# Threshold above which the semantic router selects an expert.
+SEMANTIC_ROUTING_THRESHOLD: float = float(
+    os.getenv("INTELLIMOE_SEMANTIC_THRESHOLD", "0.80")
+)
 
 
 # ---------------------------------------------------------------------------
@@ -153,4 +175,13 @@ VECTORIZER_PATH: Path   = DATA_DIR / "vectorizer.joblib"
 ML_ROUTING_CONFIDENCE_THRESHOLD: float = float(
     os.getenv("INTELLIMOE_ML_CONFIDENCE", "0.60")
 )
+
+
+# ---------------------------------------------------------------------------
+# MongoDB Database Settings
+# ---------------------------------------------------------------------------
+MONGODB_URI: Optional[str] = os.getenv("MONGODB_URI")
+MONGODB_DB_NAME: str       = os.getenv("MONGODB_DB_NAME", "intellimoe_db")
+MONGODB_COLLECTION: str    = os.getenv("MONGODB_COLLECTION", "chat_histories")
+
 

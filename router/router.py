@@ -49,6 +49,7 @@ class ExpertName(str, Enum):
     RESEARCH       = "research"
     SYSTEM_DESIGN  = "system_design"
     VISION         = "vision"
+    NEWS           = "news"
 
 
 # ---------------------------------------------------------------------------
@@ -434,6 +435,7 @@ def _build_expert_registry() -> dict[ExpertName, object]:
     from experts.research      import ResearchExpert       # noqa: PLC0415
     from experts.system_design import SystemDesignExpert   # noqa: PLC0415
     from experts.vision        import VisionExpert         # noqa: PLC0415
+    from experts.news          import NewsExpert           # noqa: PLC0415
 
     return {
         ExpertName.CODING:        CodingExpert(),
@@ -444,6 +446,7 @@ def _build_expert_registry() -> dict[ExpertName, object]:
         ExpertName.RESEARCH:      ResearchExpert(),
         ExpertName.SYSTEM_DESIGN: SystemDesignExpert(),
         ExpertName.VISION:        VisionExpert(),
+        ExpertName.NEWS:          NewsExpert(),
     }
 
 
@@ -550,16 +553,50 @@ class ExpertRouter:
         from router.planner import ExecutionPlan, ExecutionStep      # noqa: PLC0415
         from datetime import datetime                                # noqa: PLC0415
 
-        # 1. Route query using the Hybrid Router strategy to identify primary expert
-        selected_experts = self._strategy.select_experts(query)
+        # 1. Route query using the new SemanticRouter (SentenceTransformer all-MiniLM-L6-v2)
+        from semantic_router import SemanticRouter
+        sem_router = SemanticRouter()
+        sem_expert_strs, sem_debug = sem_router.select_experts(query)
+        
+        sem_expert_map = {
+            "coding": ExpertName.CODING,
+            "math": ExpertName.MATH,
+            "ml": ExpertName.ML,
+            "deep_learning": ExpertName.DEEP_LEARNING,
+            "genai": ExpertName.GENAI,
+            "research": ExpertName.RESEARCH,
+            "system_design": ExpertName.SYSTEM_DESIGN,
+            "news": ExpertName.NEWS,
+            "vision": ExpertName.VISION,
+        }
+        
+        sem_selected_experts = []
+        for s in sem_expert_strs:
+            if s in sem_expert_map:
+                sem_selected_experts.append(sem_expert_map[s])
+                
+        fallback_used = True
+        router_used = "Semantic Router"
+        
+        if sem_selected_experts:
+            selected_experts = sem_selected_experts
+            fallback_used = False
+            ml_predicted = selected_experts[0].value
+            ml_confidence = sem_debug["confidence"]
+            logger.info("SemanticRouter successfully routed query to: %s", [e.value for e in selected_experts])
+        else:
+            # Fallback to the existing Hybrid Router
+            logger.info("Semantic Router confidence below threshold. Falling back to Hybrid Router.")
+            selected_experts = self._strategy.select_experts(query)
+            
+            # Extract metadata from the hybrid router
+            decision_meta = getattr(self._strategy, "last_decision", {})
+            ml_predicted = decision_meta.get("predicted_expert")
+            ml_confidence = decision_meta.get("confidence", 0.0)
+            router_used = decision_meta.get("routing_strategy", "LLM Router")
+            fallback_used = True
+            
         primary_expert = selected_experts[0] if selected_experts else ExpertName.CODING
-
-        # Extract metadata from the hybrid router
-        decision_meta = getattr(self._strategy, "last_decision", {})
-        ml_predicted = decision_meta.get("predicted_expert")
-        ml_confidence = decision_meta.get("confidence", 0.0)
-        router_used = decision_meta.get("routing_strategy", "LLM Router")
-        fallback_used = decision_meta.get("fallback_used", True)
 
         # 2. Evaluate decision via AI Decision Engine
         if len(selected_experts) > 1:
@@ -643,7 +680,9 @@ class ExpertRouter:
             "primary_expert": primary_expert.value,
             "additional_experts": [e.value for e in additional_experts],
             "reason": decision_reason,
-            "execution_order": execution_order_strs
+            "execution_order": execution_order_strs,
+            # Semantic Router debug info
+            "semantic_router": sem_debug
         }
 
         # 5. Agent Orchestrator executes the DAG layer-by-layer
@@ -667,6 +706,20 @@ class ExpertRouter:
             r.expert_name.value: getattr(r, "review_feedback", "") for r in responses if getattr(r, "review_feedback", None)
         }
 
+        # Extract News Query Rewriter metrics if News Expert was executed in this plan
+        if ExpertName.NEWS in expert_names:
+            news_expert = self._registry.get(ExpertName.NEWS)
+            if news_expert and hasattr(news_expert, "last_rewritten_query"):
+                self.last_router_decision["news_rewriter"] = {
+                    "original_query": getattr(news_expert, "last_original_query", ""),
+                    "rewritten_query": getattr(news_expert, "last_rewritten_query", ""),
+                    "search_provider": getattr(news_expert, "last_search_provider", "Unknown"),
+                    "retrieved_articles": getattr(news_expert, "last_retrieved_articles", []),
+                    "sources_used": getattr(news_expert, "last_sources_used", []),
+                    "search_latency_s": getattr(news_expert, "last_search_latency", 0.0),
+                    "llm_latency_s": getattr(news_expert, "last_llm_latency", 0.0),
+                }
+
         # Measure query latency
         elapsed_s = time.perf_counter() - t_route_start
 
@@ -689,6 +742,9 @@ class ExpertRouter:
                 tokens_estimated=tokens_est
             )
             
+            # Inject semantic router telemetry into XAI raw JSON explanation
+            explanation["semantic_router"] = sem_debug
+            
             self.last_router_decision["xai_explanation"] = explanation
             
             generate_explainability_report(explanation)
@@ -703,7 +759,8 @@ class ExpertRouter:
         Return the single top-ranked expert for ``query`` (no inference).
         Useful for simple routing checks and backward compatibility.
         """
-        return self._strategy.select_expert(query.strip())
+        experts = self.selected_experts(query)
+        return experts[0] if experts else ExpertName.CODING
 
     def selected_experts(self, query: str) -> list[ExpertName]:
         """
@@ -719,6 +776,26 @@ class ExpertRouter:
         list[ExpertName]
             Ordered list of activated experts (highest score first).
         """
+        from semantic_router import SemanticRouter
+        sem_router = SemanticRouter()
+        sem_expert_strs, _ = sem_router.select_experts(query)
+        
+        sem_expert_map = {
+            "coding": ExpertName.CODING,
+            "math": ExpertName.MATH,
+            "ml": ExpertName.ML,
+            "deep_learning": ExpertName.DEEP_LEARNING,
+            "genai": ExpertName.GENAI,
+            "research": ExpertName.RESEARCH,
+            "system_design": ExpertName.SYSTEM_DESIGN,
+            "news": ExpertName.NEWS,
+            "vision": ExpertName.VISION,
+        }
+        
+        sem_selected = [sem_expert_map[s] for s in sem_expert_strs if s in sem_expert_map]
+        if sem_selected:
+            return sem_selected
+            
         return self._strategy.select_experts(query.strip())
 
     # ------------------------------------------------------------------

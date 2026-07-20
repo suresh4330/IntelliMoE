@@ -10,6 +10,8 @@ Available experts and their domains:
 - "genai": Large language models, LLMs, GPT, Claude, Gemini, LLaMA, prompt engineering, RAG, LangChain, agents, embeddings, vector databases, RLHF
 - "research": Academic papers, arXiv, literature review, paper summaries, benchmarks, experimental design, citations, research methodology, SOTA
 - "system_design": System architecture, distributed systems, databases, SQL, NoSQL, caching, microservices, load balancing, Kafka, scalability, cloud, API design
+- "news": Current events, breaking news headlines, live search, sports results, scores, stock market updates, weather reports
+- "vision": Image analysis, visual question answering, OCR, reading screenshot diagrams, flowcharts, plots, and figures
 
 Rules:
 1. Select ALL experts whose domain is relevant to the query.

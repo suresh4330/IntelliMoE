@@ -95,15 +95,16 @@ st.markdown(
         padding-top: 0.5rem !important;
     }
 
-    /* ── Sidebar shell ── */
+    /* ── Sidebar shell — ChatGPT-style width ── */
     [data-testid="stSidebar"] {
         background: #0B0F17 !important;
         border-right: 1px solid #1C2128 !important;
-        min-width: 240px !important;
-        max-width: 240px !important;
+        min-width: 268px !important;
+        max-width: 268px !important;
+        width: 268px !important;
     }
     [data-testid="stSidebarContent"] {
-        padding: 0 !important;
+        padding: 0 0 130px 0 !important;
         display: flex !important;
         flex-direction: column !important;
         height: 100vh !important;
@@ -294,15 +295,41 @@ st.markdown(
     .sb-bottom-link:hover { background: #161B22; color: #E6EDF3; }
     .sb-bottom-link-icon { font-size: 0.9rem; }
 
-    /* ── User Profile ── */
+    /* ── Pinned Bottom Settings & Profile Controls ── */
+    [data-testid="stSidebar"] div[class*="st-key-aqe_toggle_btn"] {
+        position: fixed !important;
+        bottom: 50px !important;
+        left: 0 !important;
+        width: 268px !important;
+        z-index: 9998 !important;
+        background: #0B0F17 !important;
+        padding: 0.55rem 1rem 0.45rem 1rem !important;
+        border-top: 1px solid #1C2128 !important;
+        box-sizing: border-box !important;
+    }
+    [data-testid="stSidebar"] div[class*="st-key-aqe_toggle_btn"]::before {
+        content: "Optimization Settings" !important;
+        display: block !important;
+        font-size: 0.78rem !important;
+        font-weight: 500 !important;
+        color: #8B949E !important;
+        margin-bottom: 0.35rem !important;
+        letter-spacing: normal !important;
+    }
     .sb-user-row {
         display: flex;
         align-items: center;
         gap: 0.65rem;
-        padding: 0.6rem 1rem 0.75rem 1rem;
+        padding: 0.65rem 1rem 0.8rem 1rem;
         cursor: pointer;
         border-top: 1px solid #1C2128;
         background: #0B0F17 !important;
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        width: 268px !important;
+        z-index: 9999 !important;
+        box-sizing: border-box !important;
     }
     .sb-avatar {
         width: 32px; height: 32px;
@@ -313,14 +340,14 @@ st.markdown(
         flex-shrink: 0;
     }
     .sb-user-name {
-        font-size: 0.83rem;
+        font-size: 0.86rem;
         font-weight: 600;
         color: #E6EDF3;
         flex: 1;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
-        max-width: 140px !important;
+        max-width: 170px !important;
         display: inline-block !important;
     }
     .sb-user-chevron { color: #484F58; font-size: 0.8rem; }
@@ -1008,47 +1035,82 @@ def _get_history_filepath() -> Path:
 
 
 def save_chat_history() -> None:
-    """Serialize and save st.session_state.chats to a JSON file."""
+    """Serialize and save st.session_state.chats to MongoDB (with local JSON fallback)."""
     import json
+    from utils.db import save_chats_to_mongodb, is_mongodb_available
+
     if not st.session_state.get("chats"):
         return
     try:
-        filepath = _get_history_filepath()
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-        
+        email = _get_signed_in_email()
         serialized = {}
         for chat_id, chat_state in st.session_state.chats.items():
             serialized[chat_id] = serialize_chat_state(chat_state)
-            
+
+        # Attempt saving to MongoDB
+        mongo_saved = False
+        if is_mongodb_available():
+            mongo_saved = save_chats_to_mongodb(email, serialized)
+
+        # Maintain local JSON file backup for fallback
+        filepath = _get_history_filepath()
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(serialized, f, indent=2, ensure_ascii=False)
+
+        if mongo_saved:
+            logger.info("Saved chat history to MongoDB & local JSON backup for '%s'.", email)
+        else:
+            logger.info("Saved chat history to local JSON file for '%s'.", email)
     except Exception as e:
         logger.error("Failed to save chat history: %s", e)
 
 
 def load_chat_history() -> dict:
-    """Load and deserialize st.session_state.chats from JSON file."""
+    """Load and deserialize st.session_state.chats from MongoDB (or local JSON fallback)."""
     import json
-    filepath = _get_history_filepath()
-    if not filepath.exists():
+    from utils.db import load_chats_from_mongodb, is_mongodb_available
+
+    email = _get_signed_in_email()
+    data = None
+
+    # Attempt loading from MongoDB first if reachable
+    if is_mongodb_available():
+        data = load_chats_from_mongodb(email)
+
+    # Fallback to local JSON file if not in MongoDB or connection is unavailable
+    if data is None:
+        filepath = _get_history_filepath()
+        if filepath.exists():
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                logger.error("Failed to load local JSON chat history: %s", e)
+
+    if not data:
         return {}
+
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
         deserialized = {}
         for chat_id, chat_data in data.items():
             deserialized[chat_id] = deserialize_chat_state(chat_data)
         return deserialized
     except Exception as e:
-        logger.error("Failed to load chat history: %s", e)
+        logger.error("Failed to deserialize chat history: %s", e)
         return {}
 
 
 def delete_chat(chat_id: str) -> None:
-    """Delete a conversation thread and switch to another or reset."""
+    """Delete a conversation thread from MongoDB & local storage."""
+    from utils.db import delete_chat_from_mongodb, is_mongodb_available
+
     if chat_id in st.session_state.chats:
         del st.session_state.chats[chat_id]
+        email = _get_signed_in_email()
+        if is_mongodb_available():
+            delete_chat_from_mongodb(email, chat_id)
+
         if not st.session_state.chats:
             _reset_to_welcome_chat()
         elif st.session_state.current_chat_id == chat_id:
@@ -1486,12 +1548,11 @@ def render_sidebar() -> None:
             )
 
         # ── Optimization settings quick toggle ──
-        st.markdown("---")
-        st.markdown("<p class='sb-section-label'>Optimization Settings</p>", unsafe_allow_html=True)
         aqe_toggle_val = st.toggle(
             "🧠 Quality Engine (AQE)",
             value=st.session_state.get("enable_aqe", True),
-            help="Enables multi-stage plan/review refinement. Disabling this switches the engine to Fast Mode (~2s latency)."
+            help="Enables multi-stage plan/review refinement. Disabling this switches the engine to Fast Mode (~2s latency).",
+            key="aqe_toggle_btn",
         )
         if aqe_toggle_val != st.session_state.get("enable_aqe", True):
             st.session_state.enable_aqe = aqe_toggle_val
@@ -1966,6 +2027,37 @@ def _render_ai_reasoning_expander(active_chat: dict) -> None:
                 )
                 st.markdown(f"**Execution flow:** {flow}")
 
+            # ── News Query Rewriter Details ────────────────────────────────
+            news_rewriter = decision.get("news_rewriter")
+            if news_rewriter:
+                st.markdown("---")
+                st.markdown(
+                    "<p style='font-size:0.8rem;font-weight:600;color:#64748b;"
+                    "text-transform:uppercase;letter-spacing:0.8px;margin:0.8rem 0 0.4rem 0;'>"
+                    "News Live Search & Rewriter Details</p>",
+                    unsafe_allow_html=True,
+                )
+                col_nw1, col_nw2 = st.columns(2)
+                with col_nw1:
+                    st.markdown(f"**Original User Query:** `{news_rewriter.get('original_query', '')}`")
+                    st.markdown(f"**Rewritten Search Query:** `{news_rewriter.get('rewritten_query', '')}`")
+                    st.markdown(f"**Search Provider:** `{news_rewriter.get('search_provider', 'Unknown')}`")
+                with col_nw2:
+                    st.markdown(f"**Search Latency:** `{news_rewriter.get('search_latency_s', 0.0):.2f}s`")
+                    st.markdown(f"**LLM Synthesis Latency:** `{news_rewriter.get('llm_latency_s', 0.0):.2f}s`")
+                    st.markdown(f"**Sources Used:** {', '.join(news_rewriter.get('sources_used', []))}")
+                
+                # Check for retrieved articles list and display in sub-expander
+                articles = news_rewriter.get("retrieved_articles", [])
+                if articles:
+                    with st.expander("📄 View Retrieved Articles", expanded=False):
+                        for idx, art in enumerate(articles, 1):
+                            st.markdown(
+                                f"**{idx}. [{art.get('title', 'No Title')}]({art.get('url', '#')})** "
+                                f"({art.get('source', 'Unknown')})\n"
+                                f"> {art.get('content', '')}\n"
+                            )
+
         # ── Timeline ────────────────────────────────────────────────────
         if timeline:
             st.markdown(
@@ -2240,6 +2332,28 @@ def _render_dev_panel(dev_panel: str, active_chat: dict) -> None:
             )
             decision = active_chat.get("last_router_decision", {})
             explanation = decision.get("xai_explanation", {})
+
+            # ── Conversation AI Diagnostics (Requirement 8) ──────────────────
+            orig_q = decision.get("original_query", decision.get("query", "N/A"))
+            clean_q = decision.get("cleaned_query", decision.get("query", "N/A"))
+            greet_rem = decision.get("greeting_removed", "No")
+            conv_conf = decision.get("conversation_confidence", decision.get("confidence", 0.0))
+            rout_dec = decision.get("routing_decision", "Pure Conversation" if decision.get("predicted_expert") == "conversational" else "Forward to Hybrid Router")
+            final_exp = decision.get("final_expert_selected", ", ".join(decision.get("selected_experts", ["N/A"])))
+
+            st.markdown("#### 💬 Conversation AI Diagnostics")
+            c_diag1, c_diag2 = st.columns(2)
+            with c_diag1:
+                st.markdown(f"**Original Query**:")
+                st.info(orig_q)
+                st.markdown(f"**Cleaned Query**:")
+                st.success(clean_q)
+            with c_diag2:
+                st.metric(label="Conversation Confidence", value=f"{conv_conf * 100:.1f}%")
+                st.markdown(f"**Greeting Removed**: `{greet_rem}`")
+                st.markdown(f"**Routing Decision**: `{rout_dec}`")
+                st.markdown(f"**Final Expert Selected**: `{final_exp.upper()}`")
+            st.markdown("---")
 
             if explanation:
                 try:
@@ -2616,18 +2730,24 @@ def render_main() -> None:
             st.markdown("</div>", unsafe_allow_html=True)
 
     # ── Chat Input ─────────────────────────────────────────────────────────
-    # File Uploader toggle
-    if st.session_state.get("show_file_uploader", False):
-        st.markdown("<div style='max-width:760px; margin:0 auto 10px auto; padding:0 10px;'>", unsafe_allow_html=True)
-        uploaded_files = st.file_uploader(
-            "Ingest papers/documents into RAG collection",
-            accept_multiple_files=True,
-            key="rag_file_uploader",
-        )
-        if uploaded_files:
-            # We can process PDFs/text files. For this demo, show a gorgeous success toast/alert
-            st.success(f"Ingested {len(uploaded_files)} document(s) into ChromaDB RAG vector collection! 🚀")
-        st.markdown("</div>", unsafe_allow_html=True)
+    if "uploader_key_suffix" not in st.session_state:
+        st.session_state.uploader_key_suffix = 0
+
+    # Hidden file uploader for Custom ChatGPT Input
+    uploader_key = f"rag_file_uploader_{st.session_state.uploader_key_suffix}"
+    uploaded_files = st.file_uploader(
+        "Ingest papers/documents into RAG collection",
+        accept_multiple_files=True,
+        key=uploader_key,
+        type=["pdf", "docx", "txt", "csv", "png", "jpg", "jpeg", "md"]
+    )
+    if uploaded_files:
+        st.success(f"Ingested {len(uploaded_files) if isinstance(uploaded_files, list) else 1} document(s) into ChromaDB RAG vector collection! 🚀")
+
+    # Hidden clear button to be triggered by chip removal
+    if st.button("Clear RAG Uploads", key="btn_clear_rag_uploads"):
+        st.session_state.uploader_key_suffix += 1
+        st.rerun()
 
     # Preferences active bar
     pref_badges = []
@@ -2648,6 +2768,193 @@ def render_main() -> None:
     placeholder_text = "Ask IntelliMoE anything..."
     if st.session_state.get("chat_input_prefill"):
         placeholder_text = "Describe your image (e.g. 'a cute cat in space')..."
+
+    # Custom styling injection
+    st.markdown(
+        """
+        <style>
+        /* Hide the default file uploader and clear button entirely */
+        div[data-testid="stFileUploader"], div[class*="st-key-btn_clear_rag_uploads"] {
+            position: absolute !important;
+            width: 0px !important;
+            height: 0px !important;
+            opacity: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+        }
+
+        /* Offset textarea slightly to make room for left + button */
+        [data-testid="stChatInput"] textarea {
+            margin-left: 40px !important;
+        }
+        
+        /* Custom interactive attachment chip */
+        .attachment-chip {
+            display: inline-flex;
+            align-items: center;
+            background: #21262D;
+            border: 1px solid #30363D;
+            color: #C9D1D9;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .attachment-chip:hover {
+            border-color: #4F8CFF;
+            background: #2A2F38;
+        }
+        .attachment-chip .remove-btn {
+            cursor: pointer;
+            color: #8B949E;
+            font-weight: bold;
+            font-size: 0.85rem;
+            transition: color 0.2s ease;
+            margin-left: 4px;
+        }
+        .attachment-chip .remove-btn:hover {
+            color: #FF7B72;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Serialize uploaded file list for JavaScript chip injection
+    import json  # noqa: PLC0415
+    file_list = []
+    if uploaded_files:
+        if isinstance(uploaded_files, list):
+            file_list = [f.name for f in uploaded_files]
+        else:
+            file_list = [uploaded_files.name]
+    file_list_json = json.dumps(file_list)
+
+    # JavaScript DOM manipulation injection via custom hidden HTML iframe
+    st_components.html(
+        f"""
+        <script>
+        (function() {{
+            const doc = window.parent.document;
+            
+            function setupChatGPTInput() {{
+                const chatInput = doc.querySelector('[data-testid="stChatInput"]');
+                if (!chatInput) return;
+                
+                // 1. circular "+" upload button on the left inside chatInput
+                let plusBtn = doc.getElementById("custom-upload-btn");
+                if (!plusBtn) {{
+                    plusBtn = doc.createElement("button");
+                    plusBtn.id = "custom-upload-btn";
+                    plusBtn.innerHTML = "➕";
+                    plusBtn.title = "Upload File";
+                    plusBtn.style.cssText = `
+                        position: absolute;
+                        left: 12px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 50%;
+                        background: transparent;
+                        border: none;
+                        color: #8B949E;
+                        font-size: 1.1rem;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        transition: background 0.2s ease, color 0.2s ease;
+                        z-index: 99;
+                    `;
+                    plusBtn.onmouseover = () => {{
+                        plusBtn.style.background = "rgba(255, 255, 255, 0.08)";
+                        plusBtn.style.color = "#E6EDF3";
+                    }};
+                    plusBtn.onmouseout = () => {{
+                        plusBtn.style.background = "transparent";
+                        plusBtn.style.color = "#8B949E";
+                    }};
+                    plusBtn.onclick = (e) => {{
+                        e.preventDefault();
+                        const fileInput = doc.querySelector('[data-testid="stFileUploader"] input[type="file"]');
+                        if (fileInput) fileInput.click();
+                    }};
+                    
+                    const innerRow = chatInput.querySelector('div > div') || chatInput.firstElementChild;
+                    if (innerRow) {{
+                        innerRow.appendChild(plusBtn);
+                    }}
+                }}
+                
+                // 2. custom attachment chips
+                const uploadedFiles = {file_list_json};
+                let chipsContainer = doc.getElementById("custom-chips-container");
+                
+                if (uploadedFiles && uploadedFiles.length > 0) {{
+                    if (!chipsContainer) {{
+                        chipsContainer = doc.createElement("div");
+                        chipsContainer.id = "custom-chips-container";
+                        chipsContainer.style.cssText = `
+                            display: flex;
+                            gap: 8px;
+                            padding: 0px 8px 8px 44px;
+                            flex-wrap: wrap;
+                            width: 100%;
+                        `;
+                        const innerContainer = chatInput.querySelector('div');
+                        if (innerContainer) {{
+                            innerContainer.insertBefore(chipsContainer, innerContainer.firstChild);
+                        }}
+                    }}
+                    
+                    // Render individual chips
+                    chipsContainer.innerHTML = "";
+                    uploadedFiles.forEach(filename => {{
+                        const chip = doc.createElement("div");
+                        chip.className = "attachment-chip";
+                        
+                        const fileIcon = doc.createElement("span");
+                        fileIcon.innerHTML = "📄";
+                        
+                        const nameSpan = doc.createElement("span");
+                        nameSpan.textContent = filename;
+                        
+                        const removeBtn = doc.createElement("span");
+                        removeBtn.className = "remove-btn";
+                        removeBtn.innerHTML = "✕";
+                        removeBtn.title = "Remove file";
+                        removeBtn.onclick = (e) => {{
+                            e.preventDefault();
+                            const clearBtn = doc.querySelector('div[class*="st-key-btn_clear_rag_uploads"] button');
+                            if (clearBtn) clearBtn.click();
+                        }};
+                        
+                        chip.appendChild(fileIcon);
+                        chip.appendChild(nameSpan);
+                        chip.appendChild(removeBtn);
+                        chipsContainer.appendChild(chip);
+                    }});
+                }} else {{
+                    if (chipsContainer) {{
+                        chipsContainer.remove();
+                    }}
+                }}
+            }}
+            
+            // Execute setup
+            setupChatGPTInput();
+            
+            // Monitor DOM mutations
+            const observer = new MutationObserver(setupChatGPTInput);
+            observer.observe(doc.body, {{ childList: true, subtree: true }});
+        }})();
+        </script>
+        """,
+        height=0
+    )
 
     query = st.chat_input(placeholder_text)
         
@@ -2690,12 +2997,22 @@ def _handle_query(query: str) -> None:
     # general knowledge) are answered directly by the LLM with full memory context.
     # Technical intents fall through to the existing routing pipeline unchanged.
     # ────────────────────────────────────────────────────────────────────────
+    conv_ai_diagnostics = None
     if not img_path:  # Images always go to Vision Expert; skip conv layer
         try:
             from conversation_ai.layer import ConversationLayer  # noqa: PLC0415
             _conv_layer = ConversationLayer()
             with st.spinner("💬 Understanding your message..."):
                 conv_result = _conv_layer.process(query, memory)
+
+            # Store diagnostics for UI rendering later
+            conv_ai_diagnostics = {
+                "original_query": conv_result.original_query,
+                "cleaned_query": conv_result.cleaned_query,
+                "greeting_removed": "Yes" if conv_result.greeting_removed else "No",
+                "conversation_confidence": conv_result.confidence,
+                "routing_decision": conv_result.routing_decision,
+            }
 
             if conv_result.is_conversational:
                 # Update conversation title if this is the first turn
@@ -2725,6 +3042,12 @@ def _handle_query(query: str) -> None:
                     "additional_experts": [],
                     "reason": conv_result.reasoning,
                     "execution_order": ["conversational"],
+                    "original_query": conv_result.original_query,
+                    "cleaned_query": conv_result.cleaned_query,
+                    "greeting_removed": "Yes" if conv_result.greeting_removed else "No",
+                    "conversation_confidence": conv_result.confidence,
+                    "routing_decision": conv_result.routing_decision,
+                    "final_expert_selected": "conversational",
                 }
                 active_chat["last_responses"] = [{
                     "expert_name": "conversational",
@@ -2758,6 +3081,9 @@ def _handle_query(query: str) -> None:
                 st.session_state.just_generated = True
                 save_chat_history()
                 return  # ← Done; never touches Hybrid Router
+            else:
+                # Substantive query found - forward the cleaned query to Hybrid Router
+                query = conv_result.cleaned_query
 
         except Exception as conv_exc:
             # Graceful degradation: log and fall through to normal routing
@@ -2832,7 +3158,18 @@ def _handle_query(query: str) -> None:
                 "error": str(r.error) if r.error else None
             } for r in getattr(router, "last_responses", [])
         ]
-        active_chat["last_router_decision"] = getattr(router, "last_router_decision", {})
+        active_chat["last_router_decision"] = dict(getattr(router, "last_router_decision", {}))
+        if conv_ai_diagnostics:
+            active_chat["last_router_decision"].update(conv_ai_diagnostics)
+            sel_exp = active_chat["last_router_decision"].get("selected_experts", [])
+            active_chat["last_router_decision"]["final_expert_selected"] = ", ".join(sel_exp)
+        elif img_path:
+            active_chat["last_router_decision"]["original_query"] = query
+            active_chat["last_router_decision"]["cleaned_query"] = query
+            active_chat["last_router_decision"]["greeting_removed"] = "No"
+            active_chat["last_router_decision"]["routing_decision"] = "Forward to Hybrid Router (Vision)"
+            active_chat["last_router_decision"]["final_expert_selected"] = "vision"
+        
         active_chat["last_elapsed"] = elapsed
 
         # Save classification run inside session state router history
